@@ -736,7 +736,7 @@ export function initModalStepLogin(modal) {
 // Generate login form HTML
 export function generateLoginForm(isModal = false) {
 	const idPrefix = isModal ? '-modal' : '';
-	return `		<div id="login-step1" class="login-step">
+	return `		<div id="login-step1${idPrefix}" class="login-step">
 			<h3 style="margin-bottom: 20px; text-align: center; font-size: 18px;">Cloud Mail 账号登录</h3>
 			<div class="input-group">
 				<input id="cloudMailEmail${idPrefix}" type="email" autocomplete="email" required placeholder="">
@@ -753,7 +753,7 @@ export function generateLoginForm(isModal = false) {
 		</div>
 		
 		<!-- 登录成功后显示的内容 -->
-		<div id="login-step2" class="login-step" style="display: none;">
+		<div id="login-step2${idPrefix}" class="login-step" style="display: none;">
 			<!-- 管理员选项 -->
 			<div id="admin-options${idPrefix}" class="admin-options" style="display: none; margin-bottom: 20px; padding: 15px; background-color: #f5f7fa; border-radius: 8px;">
 				<h3 style="margin-bottom: 15px; text-align: center; font-size: 16px; color: #409EFF;">管理员选项</h3>

@@ -112,24 +112,19 @@ window.cloudMailAuth = {
 	userInfo: null,
 	
 	// 设置认证状态
-	setAuthenticated(status, userInfo = null) {
-		this.isAuthenticated = status;
-		this.userInfo = userInfo;
-		
-		// 如果认证成功，隐藏登录界面，显示聊天界面
-		if (status) {
-			const loginContainer = $id('login-container');
-			const chatContainer = $id('chat-container');
-			if (loginContainer) loginContainer.style.display = 'none';
-			if (chatContainer) chatContainer.style.display = '';
-		} else {
+		setAuthenticated(status, userInfo = null) {
+			this.isAuthenticated = status;
+			this.userInfo = userInfo;
+			
 			// 如果认证失败，显示登录界面，隐藏聊天界面
-			const loginContainer = $id('login-container');
-			const chatContainer = $id('chat-container');
-			if (loginContainer) loginContainer.style.display = '';
-			if (chatContainer) chatContainer.style.display = 'none';
-		}
-	},
+			if (!status) {
+				const loginContainer = $id('login-container');
+				const chatContainer = $id('chat-container');
+				if (loginContainer) loginContainer.style.display = '';
+				if (chatContainer) chatContainer.style.display = 'none';
+			}
+			// 认证成功时不直接隐藏登录界面，保持可见直到用户输入节点信息并提交
+		},
 	
 	// 检查认证状态
 	checkAuth() {
