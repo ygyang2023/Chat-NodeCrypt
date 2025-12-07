@@ -564,8 +564,8 @@ export function initStepLogin() {
 						const adminManageBtn = form.querySelector(`#admin-manage-btn${idPrefix}`);
 						if (adminManageBtn) {
 							adminManageBtn.addEventListener('click', () => {
-								// 跳转到管理后台
-								window.location.href = 'https://cnmailcn.dpdns.org/manage';
+								// 跳转到本地管理后台
+								window.location.href = '/admin.html';
 							});
 						}
 					}
@@ -694,8 +694,8 @@ export function initModalStepLogin(modal) {
 						const adminManageBtn = form.querySelector(`#admin-manage-btn${idPrefix}`);
 						if (adminManageBtn) {
 							adminManageBtn.addEventListener('click', () => {
-								// 跳转到管理后台
-								window.location.href = 'https://cnmailcn.dpdns.org/manage';
+								// 跳转到本地管理后台
+								window.location.href = '/admin.html';
 							});
 						}
 					}

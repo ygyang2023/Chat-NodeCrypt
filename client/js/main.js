@@ -65,6 +65,13 @@ import {
 	autoGrowInput         // 自动调整输入框高度 / Auto adjust input height
 } from './chat.js';
 
+// 从 admin.js 中导入违禁词过滤功能
+// Import forbidden words filter functions from admin.js
+import {
+	checkForbiddenWords,  // 检查消息是否包含违禁词 / Check if message contains forbidden words
+	filterMessage         // 过滤消息中的违禁词 / Filter forbidden words from message
+} from './admin.js';
+
 // 从 ui.js 中导入 UI 界面相关的功能
 // Import user interface functions from ui.js
 import {	renderUserList,       // 渲染用户列表 / Render user list
@@ -230,12 +237,23 @@ window.addEventListener('DOMContentLoaded', () => {
 	function sendMessage() {
 		// 检查认证状态
 		if (!window.cloudMailAuth.checkAuth()) return;
-					
-		const text = input.innerText.trim(); // 获取输入的文本 / Get input text
+				
+		let text = input.innerText.trim(); // 获取输入的文本 / Get input text
 		const images = imagePasteHandler ? imagePasteHandler.getCurrentImages() : []; // 获取所有图片
 
 		if (!text && images.length === 0) return; // 如果没有文本且没有图片，则不发送
 		const rd = roomsData[activeRoomIndex]; // 当前房间数据 / Current room data
+		
+		// 检查并过滤违禁词
+		if (text) {
+			const checkResult = checkForbiddenWords(text);
+			if (!checkResult.allowed) {
+				addSystemMsg('您的消息包含违禁词，已被过滤', true);
+			}
+			
+			// 过滤违禁词
+			text = filterMessage(text);
+		}
 		
 		if (rd && rd.chat) {
 			if (images.length > 0) {
