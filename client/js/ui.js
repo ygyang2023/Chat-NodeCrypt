@@ -391,15 +391,30 @@ export function setupMoreBtnMenu() {
 // 禁止输入空格和特殊字符
 export function preventSpaceInput(input) {
 	if (!input) return;
+	
+	// 检查是否为邮箱输入框
+	const isEmailInput = input.id.includes('cloudMailEmail') || input.type === 'email';
+	
 	input.addEventListener('keydown', function(e) {
-		if (e.key === ' ' || (/[\u0000-\u007f]/.test(e.key) && /[\p{P}\p{S}]/u.test(e.key) && e.key !== "'")) {
+		if (e.key === ' ') {
+			e.preventDefault()
+		}
+		// 如果是邮箱输入框，允许@符号和其他邮箱相关特殊字符
+		if (!isEmailInput && /[\u0000-\u007f]/.test(e.key) && /[\p{P}\p{S}]/u.test(e.key) && e.key !== "'") {
 			e.preventDefault()
 		}
 	});
+	
 	input.addEventListener('input', function(e) {
-		input.value = input.value.replace(/[\s\p{P}\p{S}]/gu, function(match) {
-			return match === "'" ? "'" : ''
-		})
+		if (isEmailInput) {
+			// 邮箱输入框只移除空格
+			input.value = input.value.replace(/\s/g, '')
+		} else {
+			// 其他输入框移除空格和特殊字符
+			input.value = input.value.replace(/[\s\p{P}\p{S}]/gu, function(match) {
+				return match === "'" ? "'" : ''
+			})
+		}
 	})
 }
 
@@ -514,33 +529,44 @@ export function loginFormHandler(modal) {
 // Generate login form HTML
 export function generateLoginForm(isModal = false) {
 	const idPrefix = isModal ? '-modal' : '';
-	return `		<div class="input-group">
-			<input id="cloudMailEmail${idPrefix}" type="email" autocomplete="email" required placeholder="">
-			<label for="cloudMailEmail${idPrefix}" class="floating-label">Cloud Mail Email</label>
+	return `		<div class="login-section">
+			<h3 style="margin-bottom: 20px; text-align: center; font-size: 18px;">Cloud Mail 账号登录</h3>
+			<div class="input-group">
+				<input id="cloudMailEmail${idPrefix}" type="email" autocomplete="email" required placeholder="">
+				<label for="cloudMailEmail${idPrefix}" class="floating-label">邮箱账号</label>
+			</div>
+			<div class="input-group">
+				<input id="cloudMailPassword${idPrefix}" type="password" autocomplete="current-password" required placeholder="">
+				<label for="cloudMailPassword${idPrefix}" class="floating-label">密码</label>
+			</div>
+			<p style="margin-top: 10px; text-align: center; font-size: 12px; color: #666;">
+				还没有账号？ <a href="https://cnmailcn.dpdns.org/login" target="_blank" style="color: #409EFF; text-decoration: none;">前往注册</a>
+			</p>
 		</div>
-		<div class="input-group">
-			<input id="cloudMailPassword${idPrefix}" type="password" autocomplete="current-password" required placeholder="">
-			<label for="cloudMailPassword${idPrefix}" class="floating-label">Cloud Mail Password</label>
+		
+		<div class="login-section" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+			<h3 style="margin-bottom: 20px; text-align: center; font-size: 18px;">节点信息</h3>
+			<div class="input-group">
+				<input id="userName${idPrefix}" type="text" autocomplete="username" required minlength="1" maxlength="15" placeholder="">
+				<label for="userName${idPrefix}" class="floating-label">昵称</label>
+			</div>
+			<div class="input-group">
+				<input id="roomName${idPrefix}" type="text" required minlength="1" maxlength="15" placeholder="">
+				<label for="roomName${idPrefix}" class="floating-label">群聊名称</label>
+			</div>
+			<div class="input-group">
+				<input id="password${idPrefix}" type="password" autocomplete="${isModal ? 'off' : 'current-password'}" minlength="1" maxlength="15" placeholder="">
+				<label for="password${idPrefix}" class="floating-label">群聊口令 <span class="optional">${t('ui.optional', '(可选)')}</span></label>
+			</div>
 		</div>
-		<div class="input-group">
-			<input id="userName${idPrefix}" type="text" autocomplete="username" required minlength="1" maxlength="15" placeholder="">
-			<label for="userName${idPrefix}" class="floating-label">${t('ui.username', 'Username')}</label>
-		</div>
-		<div class="input-group">
-			<input id="roomName${idPrefix}" type="text" required minlength="1" maxlength="15" placeholder="">
-			<label for="roomName${idPrefix}" class="floating-label">${t('ui.node_name', 'Node Name')}</label>
-		</div>
-		<div class="input-group">
-			<input id="password${idPrefix}" type="password" autocomplete="${isModal ? 'off' : 'current-password'}" minlength="1" maxlength="15" placeholder="">
-			<label for="password${idPrefix}" class="floating-label">${t('ui.node_password', 'Node Password')} <span class="optional">${t('ui.optional', '(optional)')}</span></label>
-		</div>
-		<button type="submit" class="login-btn">${t('ui.enter', 'ENTER')}</button>
+		
+		<button type="submit" class="login-btn" style="margin-top: 30px;">${t('ui.enter', '进入群聊')}</button>
 	`;
 }
 export function openLoginModal() {
 	const modal = document.createElement('div');
 	modal.className = 'login-modal';
-	modal.innerHTML = `<div class="login-modal-bg"></div><div class="login-modal-card"><button class="login-modal-close login-modal-close-abs">&times;</button><h1>${t('ui.enter_node', 'Enter a Node')}</h1><form id="login-form-modal">${generateLoginForm(true)}</form></div>`;
+	modal.innerHTML = `<div class="login-modal-bg"></div><div class="login-modal-card"><button class="login-modal-close login-modal-close-abs">&times;</button><h1 style="text-align: center;">Cloud Mail Chat</h1><form id="login-form-modal">${generateLoginForm(true)}</form></div>`;
 	document.body.appendChild(modal);
 	modal.querySelector('.login-modal-close').onclick = () => modal.remove();
 	preventSpaceInput(modal.querySelector('#cloudMailEmail-modal'));
@@ -640,6 +666,14 @@ export function initLoginForm() {
 		// 只有当登录表单为空时才初始化
 		// Only initialize if login form is empty
 		loginFormContainer.innerHTML = generateLoginForm(false);
+	}
+	
+	// 更新登录页面标题
+	// Update login page title
+	const loginTitle = document.getElementById('login-title');
+	if (loginTitle) {
+		loginTitle.textContent = 'Cloud Mail Chat';
+		loginTitle.style.textAlign = 'center';
 	}
 	
 	// 为登录页面添加class，用于手机适配
