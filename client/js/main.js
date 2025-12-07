@@ -77,6 +77,8 @@ import {	renderUserList,       // 渲染用户列表 / Render user list
 	autofillRoomPwd,      // 自动填充房间密码 / Autofill room password
 	generateLoginForm,    // 生成登录表单HTML / Generate login form HTML
 	initLoginForm,        // 初始化登录表单 / Initialize login form
+	initStepLogin,        // 初始化分步登录 / Initialize step-by-step login
+	initModalStepLogin,   // 初始化模态框分步登录 / Initialize modal step-by-step login
 	initFlipCard          // 初始化翻转卡片功能 / Initialize flip card functionality
 } from './ui.js';
 
