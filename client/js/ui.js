@@ -480,7 +480,9 @@ export function initStepLogin() {
 		
 		// 第一步登录按钮点击事件
 		const step1Btn = document.getElementById(`login-btn-step1${idPrefix}`);
-		if (step1Btn) {
+		const step1 = document.getElementById(`login-step1${idPrefix}`);
+		
+		if (step1Btn && step1) {
 			step1Btn.addEventListener('click', async () => {
 				const emailInput = document.getElementById(`cloudMailEmail${idPrefix}`);
 				const passwordInput = document.getElementById(`cloudMailPassword${idPrefix}`);
@@ -497,6 +499,12 @@ export function initStepLogin() {
 				step1Btn.disabled = true;
 				step1Btn.innerText = '登录中...';
 				
+				// 清除之前的错误信息
+				let errorElement = step1.querySelector('.cloud-mail-error');
+				if (errorElement) {
+					errorElement.remove();
+				}
+				
 				try {
 					// 调用Cloud Mail登录API进行验证
 					const response = await fetch('/api/cloud-mail/login', {
@@ -509,13 +517,12 @@ export function initStepLogin() {
 					
 					const result = await response.json();
 					if (!response.ok || !result.success) {
-						throw new Error(result.message || 'Cloud Mail login failed');
+						throw new Error(result.message || '邮箱账号或密码错误');
 					}
 					
 					// 登录成功，隐藏第一步，显示第二步
-					const step1 = document.getElementById(`login-step1${idPrefix}`);
 					const step2 = document.getElementById(`login-step2${idPrefix}`);
-					if (step1 && step2) {
+					if (step2) {
 						step1.style.display = 'none';
 						step2.style.display = '';
 					}
@@ -538,7 +545,7 @@ export function initStepLogin() {
 					}
 					
 					// 保存登录状态
-				window.cloudMailAuth.setAuthenticated(true, result.data);
+					window.cloudMailAuth.setAuthenticated(true, result.data);
 					
 				} catch (error) {
 					// 登录失败，显示错误提示
@@ -546,7 +553,8 @@ export function initStepLogin() {
 					step1Btn.disabled = false;
 					step1Btn.innerText = '登录';
 					
-					let errorElement = form.querySelector('.cloud-mail-error');
+					// 创建或更新错误信息
+					errorElement = step1.querySelector('.cloud-mail-error');
 					if (!errorElement) {
 						errorElement = document.createElement('div');
 						errorElement.className = 'cloud-mail-error';
@@ -554,13 +562,113 @@ export function initStepLogin() {
 						errorElement.style.fontSize = '13px';
 						errorElement.style.marginTop = '10px';
 						errorElement.style.textAlign = 'center';
-						form.appendChild(errorElement);
+						step1.appendChild(errorElement);
 					}
 					errorElement.textContent = error.message || '邮箱账号或密码错误';
 				}
 			});
 		}
 	});
+}
+
+// 为模态框中的登录表单初始化分步登录逻辑
+export function initModalStepLogin(modal) {
+	const form = modal.querySelector('form[id^="login-form"]');
+	if (form) {
+		const isModal = true;
+		const idPrefix = '-modal';
+		
+		// 第一步登录按钮点击事件
+		const step1Btn = form.querySelector(`#login-btn-step1${idPrefix}`);
+		const step1 = form.querySelector(`#login-step1${idPrefix}`);
+		
+		if (step1Btn && step1) {
+			step1Btn.addEventListener('click', async () => {
+				const emailInput = form.querySelector(`#cloudMailEmail${idPrefix}`);
+				const passwordInput = form.querySelector(`#cloudMailPassword${idPrefix}`);
+				const cloudMailEmail = emailInput.value.trim();
+				const cloudMailPassword = passwordInput.value.trim();
+				
+				// 验证输入
+				if (!cloudMailEmail || !cloudMailPassword) {
+					alert('请输入邮箱账号和密码');
+					return;
+				}
+				
+				// 显示加载状态
+				step1Btn.disabled = true;
+				step1Btn.innerText = '登录中...';
+				
+				// 清除之前的错误信息
+				let errorElement = step1.querySelector('.cloud-mail-error');
+				if (errorElement) {
+					errorElement.remove();
+				}
+				
+				try {
+					// 调用Cloud Mail登录API进行验证
+					const response = await fetch('/api/cloud-mail/login', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ email: cloudMailEmail, password: cloudMailPassword })
+					});
+					
+					const result = await response.json();
+					if (!response.ok || !result.success) {
+						throw new Error(result.message || '邮箱账号或密码错误');
+					}
+					
+					// 登录成功，隐藏第一步，显示第二步
+					const step2 = form.querySelector(`#login-step2${idPrefix}`);
+					if (step2) {
+						step1.style.display = 'none';
+						step2.style.display = '';
+					}
+					
+					// 检查是否为管理员账号
+					if (cloudMailEmail === 'admin@admin.admin') {
+						const adminOptions = form.querySelector(`#admin-options${idPrefix}`);
+						if (adminOptions) {
+							adminOptions.style.display = '';
+						}
+						
+						// 管理员按钮点击事件
+						const adminManageBtn = form.querySelector(`#admin-manage-btn${idPrefix}`);
+						if (adminManageBtn) {
+							adminManageBtn.addEventListener('click', () => {
+								// 跳转到管理后台
+								window.location.href = 'https://cnmailcn.dpdns.org/manage';
+							});
+						}
+					}
+					
+					// 保存登录状态
+					window.cloudMailAuth.setAuthenticated(true, result.data);
+					
+				} catch (error) {
+					// 登录失败，显示错误提示
+					console.error('Cloud Mail login error:', error);
+					step1Btn.disabled = false;
+					step1Btn.innerText = '登录';
+					
+					// 创建或更新错误信息
+					errorElement = step1.querySelector('.cloud-mail-error');
+					if (!errorElement) {
+						errorElement = document.createElement('div');
+						errorElement.className = 'cloud-mail-error';
+						errorElement.style.color = '#e74c3c';
+						errorElement.style.fontSize = '13px';
+						errorElement.style.marginTop = '10px';
+						errorElement.style.textAlign = 'center';
+						step1.appendChild(errorElement);
+					}
+					errorElement.textContent = error.message || '邮箱账号或密码错误';
+				}
+			});
+		}
+	}
 }
 
 // 生成登录表单HTML
@@ -624,6 +732,8 @@ export function openLoginModal() {
 	preventSpaceInput(modal.querySelector('#roomName-modal'));
 	preventSpaceInput(modal.querySelector('#password-modal'));	const form = modal.querySelector('#login-form-modal');
 	form.addEventListener('submit', loginFormHandler(modal));
+	// 初始化模态框中的分步登录逻辑
+	initModalStepLogin(modal);
 	autofillRoomPwd('-modal')
 }
 
