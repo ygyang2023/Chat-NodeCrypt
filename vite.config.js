@@ -39,7 +39,10 @@ export default defineConfig({
 		// Rollup 选项
 		rollupOptions: {			// Input file
 			// 输入文件
-			input: 'client/index.html',
+			input: {
+				main: 'client/index.html',
+				admin: 'client/admin.html'
+			},
 			// Output options
 			// 输出选项
 			output: {
