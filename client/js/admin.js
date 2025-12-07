@@ -182,15 +182,15 @@ function initWordFilter() {
 	// 从localStorage获取违禁词列表
 	let forbiddenWords = JSON.parse(localStorage.getItem('forbiddenWords') || '[]');
 	
-	// 渲染违禁词列表
-	renderWordList(forbiddenWords);
-	
 	// 获取DOM元素
 	const addWordBtn = document.getElementById('add-word-btn');
 	const newWordInput = document.getElementById('new-word');
 	const wordList = document.getElementById('word-list');
 	const saveSettingsBtn = document.getElementById('save-settings-btn');
 	const statusMessage = document.getElementById('status-message');
+	
+	// 渲染违禁词列表
+	renderWordList(forbiddenWords);
 	
 	// 添加违禁词
 	addWordBtn.addEventListener('click', () => {
