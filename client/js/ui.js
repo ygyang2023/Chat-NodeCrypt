@@ -570,8 +570,12 @@ export function initStepLogin() {
 						}
 					}
 					
-					// 保存登录状态
-					window.cloudMailAuth.setAuthenticated(true, result.data || result);
+					// 保存登录状态，确保userInfo包含email字段
+					const authData = result.data || result;
+					if (!authData.email) {
+						authData.email = cloudMailEmail;
+					}
+					window.cloudMailAuth.setAuthenticated(true, authData);
 					console.log('Login successful, authenticated:', window.cloudMailAuth.isAuthenticated);
 					
 				} catch (error) {

@@ -26,11 +26,18 @@ window.cloudMailAuth = window.cloudMailAuth || {
 		this.isAuthenticated = status;
 		this.userInfo = userInfo;
 		
+		// 确保userInfo包含email字段，用于管理员权限检查
+		if (status && !this.userInfo) {
+			this.userInfo = {
+				email: ''
+			};
+		}
+		
 		// 将登录状态保存到localStorage
 		if (status) {
 			localStorage.setItem('cloudMailAuth', JSON.stringify({
 				isAuthenticated: status,
-				userInfo: userInfo
+				userInfo: this.userInfo
 			}));
 		} else {
 			// 登出时清除localStorage中的登录状态

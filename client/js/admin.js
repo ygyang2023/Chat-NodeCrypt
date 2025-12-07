@@ -78,6 +78,21 @@ function initChatManagement() {
 	const adminMessageInput = document.getElementById('admin-message');
 	const sendAdminMessageBtn = document.getElementById('send-admin-message');
 	
+	// 添加群聊记录管理功能
+	const chatManagementSection = document.createElement('div');
+	chatManagementSection.className = 'chat-management-section';
+	chatManagementSection.innerHTML = `
+		<div class="chat-management-header">
+			<h3>群聊记录管理</h3>
+			<div class="chat-management-actions">
+				<label><input type="checkbox" id="select-all-messages"> 全选</label>
+				<button id="delete-selected-messages" style="margin-left: 10px; background-color: #ff4d4f; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;">删除选中记录</button>
+				<button id="delete-all-messages" style="margin-left: 10px; background-color: #ff7875; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;">清空所有记录</button>
+			</div>
+		</div>
+	`;
+	chatView.insertBefore(chatManagementSection, chatMessages);
+	
 	// 模拟群聊数据
 	const mockChats = [
 		{ id: '1', name: '群聊1', members: 10, lastActive: '2小时前', hasViolation: true },
@@ -98,11 +113,22 @@ function initChatManagement() {
 					<span class="chat-item-name">${chat.name}</span>
 					<span class="chat-item-info">${chat.members} 成员 · ${chat.lastActive}</span>
 				</div>
+				<div style="margin-top: 10px;">
+					<button class="chat-action-btn view-btn" data-chat-id="${chat.id}">查看记录</button>
+					<button class="chat-action-btn announce-btn" data-chat-id="${chat.id}">发送公告</button>
+				</div>
 			`;
 			
-			// 点击进入群聊详情
-			chatItem.addEventListener('click', () => {
+			// 查看记录按钮点击事件
+			const viewBtn = chatItem.querySelector('.view-btn');
+			viewBtn.addEventListener('click', () => {
 				openChatView(chat);
+			});
+			
+			// 发送公告按钮点击事件
+			const announceBtn = chatItem.querySelector('.announce-btn');
+			announceBtn.addEventListener('click', () => {
+				openAnnounceModal(chat);
 			});
 			
 			chatList.appendChild(chatItem);
@@ -117,6 +143,9 @@ function initChatManagement() {
 		
 		// 渲染聊天记录
 		renderChatMessages(chat.id);
+		
+		// 初始化消息选择功能
+		initMessageSelection();
 	}
 	
 	// 返回群聊列表
@@ -139,12 +168,63 @@ function initChatManagement() {
 		mockMessages.forEach(msg => {
 			const messageDiv = document.createElement('div');
 			messageDiv.className = 'user-chat-message';
+			messageDiv.dataset.messageId = msg.id;
 			messageDiv.innerHTML = `
+				<div class="message-selection"><input type="checkbox" class="message-checkbox" data-message-id="${msg.id}"></div>
 				<div style="font-weight: bold; margin-bottom: 5px;">${msg.user}</div>
 				<div>${msg.content}</div>
 				<div style="font-size: 12px; color: #909399; text-align: right; margin-top: 5px;">${msg.timestamp}</div>
 			`;
+			
+			// 添加样式，让消息选择框和内容并排显示
+			const messageSelection = messageDiv.querySelector('.message-selection');
+			messageSelection.style.float = 'left';
+			messageSelection.style.marginRight = '10px';
+			messageSelection.style.marginTop = '10px';
+			
 			chatMessages.appendChild(messageDiv);
+		});
+	}
+	
+	// 初始化消息选择功能
+	function initMessageSelection() {
+		const selectAllCheckbox = document.getElementById('select-all-messages');
+		const deleteSelectedBtn = document.getElementById('delete-selected-messages');
+		const deleteAllBtn = document.getElementById('delete-all-messages');
+		const messageCheckboxes = document.querySelectorAll('.message-checkbox');
+		
+		// 全选功能
+		selectAllCheckbox.addEventListener('change', () => {
+			messageCheckboxes.forEach(checkbox => {
+				checkbox.checked = selectAllCheckbox.checked;
+			});
+		});
+		
+		// 删除选中记录
+		deleteSelectedBtn.addEventListener('click', () => {
+			const selectedCheckboxes = document.querySelectorAll('.message-checkbox:checked');
+			if (selectedCheckboxes.length === 0) {
+				alert('请先选择要删除的记录');
+				return;
+			}
+			
+			if (confirm(`确定要删除选中的 ${selectedCheckboxes.length} 条记录吗？`)) {
+				selectedCheckboxes.forEach(checkbox => {
+					const messageDiv = checkbox.closest('.user-chat-message');
+					if (messageDiv) {
+						messageDiv.remove();
+					}
+				});
+				selectAllCheckbox.checked = false;
+			}
+		});
+		
+		// 清空所有记录
+		deleteAllBtn.addEventListener('click', () => {
+			if (confirm('确定要清空所有记录吗？此操作不可恢复')) {
+				chatMessages.innerHTML = '';
+				selectAllCheckbox.checked = false;
+			}
 		});
 	}
 	
@@ -156,14 +236,25 @@ function initChatManagement() {
 		const messageDiv = document.createElement('div');
 		messageDiv.className = 'admin-chat-message';
 		messageDiv.innerHTML = `
+			<div class="message-selection"><input type="checkbox" class="message-checkbox"></div>
 			<div style="font-weight: bold; margin-bottom: 5px;">管理员</div>
 			<div>${message}</div>
 			<div style="font-size: 12px; color: #909399; text-align: right; margin-top: 5px;">${new Date().toLocaleTimeString()}</div>
 		`;
+		
+		// 添加样式
+		const messageSelection = messageDiv.querySelector('.message-selection');
+		messageSelection.style.float = 'left';
+		messageSelection.style.marginRight = '10px';
+		messageSelection.style.marginTop = '10px';
+		
 		chatMessages.appendChild(messageDiv);
 		chatMessages.scrollTop = chatMessages.scrollHeight;
 		
 		adminMessageInput.value = '';
+		
+		// 重新初始化消息选择功能
+		initMessageSelection();
 	});
 	
 	// 回车键发送消息
@@ -175,6 +266,230 @@ function initChatManagement() {
 	
 	// 初始渲染群聊列表
 	renderChatList();
+}
+
+// 打开公告模态框
+function openAnnounceModal(chat = null) {
+	// 移除已存在的模态框
+	const existingModal = document.getElementById('announce-modal');
+	if (existingModal) {
+		existingModal.remove();
+	}
+	
+	// 创建公告模态框
+	const modal = document.createElement('div');
+	modal.id = 'announce-modal';
+	modal.className = 'announce-modal';
+	modal.innerHTML = `
+		<div class="announce-modal-bg"></div>
+		<div class="announce-modal-content">
+			<div class="announce-modal-header">
+				<h3>${chat ? `${chat.name} 公告` : '发送公告'}</h3>
+				<button class="announce-modal-close">&times;</button>
+			</div>
+			<div class="announce-modal-body">
+				<div class="announce-target">
+					<h4>公告范围</h4>
+					<div class="announce-target-options">
+						<label><input type="radio" name="announce-target" value="all" ${!chat ? 'checked' : ''}> 所有群聊</label>
+						<label><input type="radio" name="announce-target" value="selected" ${chat ? 'checked' : ''}> 特定群聊</label>
+						<div id="selected-chats" style="margin-top: 10px; display: ${chat ? 'block' : 'none'};">
+							${chat ? `<div class="selected-chat-item">${chat.name}</div>` : ''}
+						</div>
+					</div>
+				</div>
+				<div class="announce-content">
+					<h4>公告内容</h4>
+					<textarea id="announce-content" rows="5" placeholder="输入公告内容" maxlength="500"></textarea>
+					<p style="font-size: 12px; color: #909399; margin-top: 5px;">最多500字</p>
+				</div>
+			</div>
+			<div class="announce-modal-footer">
+				<button id="cancel-announce" class="cancel-btn">取消</button>
+				<button id="send-announce" class="send-btn">发送</button>
+			</div>
+		</div>
+	</div>
+	`;
+	
+	// 添加模态框样式
+	const style = document.createElement('style');
+	style.textContent = `
+		.announce-modal {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 1000;
+		}
+		.announce-modal-bg {
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background-color: rgba(0, 0, 0, 0.5);
+		}
+		.announce-modal-content {
+			position: relative;
+			background-color: white;
+			border-radius: 8px;
+			width: 80%;
+			max-width: 600px;
+			max-height: 80%;
+			overflow: hidden;
+		}
+		.announce-modal-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding: 20px;
+			border-bottom: 1px solid #e0e0e0;
+		}
+		.announce-modal-header h3 {
+			margin: 0;
+		}
+		.announce-modal-close {
+			background: none;
+			border: none;
+			font-size: 24px;
+			cursor: pointer;
+			color: #909399;
+		}
+		.announce-modal-body {
+			padding: 20px;
+		}
+		.announce-target-options label {
+			display: block;
+			margin-bottom: 10px;
+			cursor: pointer;
+		}
+		#announce-content {
+			width: 100%;
+			padding: 10px;
+			border: 1px solid #dcdfe6;
+			border-radius: 4px;
+			font-size: 14px;
+			resize: vertical;
+		}
+		.announce-modal-footer {
+			display: flex;
+			justify-content: flex-end;
+			padding: 20px;
+			border-top: 1px solid #e0e0e0;
+			gap: 10px;
+		}
+		.cancel-btn {
+			padding: 10px 20px;
+			border: 1px solid #dcdfe6;
+			border-radius: 4px;
+			background-color: white;
+			cursor: pointer;
+		}
+		.send-btn {
+			padding: 10px 20px;
+			border: none;
+			border-radius: 4px;
+			background-color: #409EFF;
+			color: white;
+			cursor: pointer;
+		}
+		.selected-chat-item {
+			background-color: #f5f7fa;
+			border: 1px solid #e4e7ed;
+			border-radius: 4px;
+			padding: 8px 12px;
+			margin-bottom: 5px;
+			display: inline-block;
+			margin-right: 10px;
+		}
+		.chat-action-btn {
+			padding: 5px 10px;
+			border: 1px solid #dcdfe6;
+			border-radius: 4px;
+			background-color: white;
+			cursor: pointer;
+			margin-right: 5px;
+		}
+		.view-btn {
+			color: #409EFF;
+			border-color: #409EFF;
+		}
+		.announce-btn {
+			color: #67C23A;
+			border-color: #67C23A;
+		}
+		.chat-management-section {
+			padding: 15px;
+			background-color: #f5f7fa;
+			border-bottom: 1px solid #e4e7ed;
+			margin-bottom: 20px;
+		}
+		.chat-management-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 15px;
+		}
+		.chat-management-header h3 {
+			margin: 0;
+			font-size: 16px;
+		}
+		.chat-management-actions {
+			display: flex;
+			align-items: center;
+		}
+		.chat-management-actions label {
+			cursor: pointer;
+		}
+	`;
+	document.head.appendChild(style);
+	document.body.appendChild(modal);
+	
+	// 关闭模态框
+	const closeBtn = modal.querySelector('.announce-modal-close');
+	const cancelBtn = modal.querySelector('#cancel-announce');
+	const modalBg = modal.querySelector('.announce-modal-bg');
+	
+	function closeModal() {
+		modal.remove();
+		style.remove();
+	}
+	
+	closeBtn.addEventListener('click', closeModal);
+	cancelBtn.addEventListener('click', closeModal);
+	modalBg.addEventListener('click', closeModal);
+	
+	// 公告范围选择
+	const announceTargetRadios = modal.querySelectorAll('input[name="announce-target"]');
+	const selectedChatsDiv = modal.querySelector('#selected-chats');
+	
+	announceTargetRadios.forEach(radio => {
+		radio.addEventListener('change', () => {
+			selectedChatsDiv.style.display = radio.value === 'selected' ? 'block' : 'none';
+		});
+	});
+	
+	// 发送公告
+	const sendAnnounceBtn = modal.querySelector('#send-announce');
+	sendAnnounceBtn.addEventListener('click', () => {
+		const content = modal.querySelector('#announce-content').value.trim();
+		if (!content) {
+			alert('请输入公告内容');
+			return;
+		}
+		
+		// 发送公告（模拟）
+		alert('公告发送成功！');
+		closeModal();
+		
+		// 实际发送公告的逻辑可以在这里添加
+		// 例如：向特定群聊或所有群聊发送公告
+	});
 }
 
 // 初始化违禁词管理
