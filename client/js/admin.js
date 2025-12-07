@@ -1,54 +1,12 @@
 // 管理员后台逻辑
 
-// 确保全局状态管理对象存在
-if (!window.cloudMailAuth) {
-	window.cloudMailAuth = {
-		isAuthenticated: false,
-		userInfo: null,
-		
-		// 设置认证状态
-		setAuthenticated(status, userInfo = null) {
-			this.isAuthenticated = status;
-			this.userInfo = userInfo;
-		},
-		
-		// 检查认证状态
-		checkAuth() {
-			if (!this.isAuthenticated) {
-				return false;
-			}
-			return true;
-		}
-	};
-}
-
-// 检查管理员权限
-function isAdmin() {
-	return window.cloudMailAuth.isAuthenticated && 
-		   window.cloudMailAuth.userInfo && 
-		   window.cloudMailAuth.userInfo.email === 'admin@admin.admin';
-}
+// 导入认证模块
+import { isAdmin } from './auth.js';
 
 // 检查认证状态并显示相应界面
 export function checkAuth() {
 	const loginPrompt = document.getElementById('login-prompt');
 	const adminDashboard = document.getElementById('admin-dashboard');
-	
-	// 确保window.cloudMailAuth对象有init方法，如果没有则初始化
-	if (window.cloudMailAuth && typeof window.cloudMailAuth.init === 'function') {
-		window.cloudMailAuth.init();
-	} else {
-		// 如果没有init方法，则手动从localStorage获取登录状态
-		const authData = localStorage.getItem('cloudMailAuth');
-		if (authData) {
-			try {
-				const parsedData = JSON.parse(authData);
-				window.cloudMailAuth.setAuthenticated(true, parsedData.userInfo);
-			} catch (error) {
-				console.error('Failed to parse auth data:', error);
-			}
-		}
-	}
 	
 	if (isAdmin()) {
 		// 显示管理员后台
