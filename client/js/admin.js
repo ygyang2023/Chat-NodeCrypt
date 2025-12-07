@@ -227,27 +227,100 @@ function initChatManagement() {
 		chatList.style.display = '';
 	});
 	
+	// 获取认证Token
+	function getAuthToken() {
+		const user = JSON.parse(localStorage.getItem('user')) || {};
+		return btoa(JSON.stringify(user));
+	}
+	
+	// 获取群聊消息
+	async function fetchChatMessages(chatId) {
+		try {
+			const response = await fetch(`/api/admin/channels/${chatId}/messages`, {
+				method: 'GET',
+				headers: {
+					'Authorization': `Bearer ${getAuthToken()}`
+				}
+			});
+			
+			if (!response.ok) {
+				throw new Error('Failed to fetch chat messages');
+			}
+			
+			const result = await response.json();
+			return result.success ? result.data.messages : [];
+		} catch (error) {
+			console.error('Error fetching chat messages:', error);
+			return [];
+		}
+	}
+	
+	// 删除单条消息
+	async function deleteMessage(chatId, messageId) {
+		try {
+			const response = await fetch(`/api/admin/channels/${chatId}/messages/${messageId}`, {
+				method: 'DELETE',
+				headers: {
+					'Authorization': `Bearer ${getAuthToken()}`
+				}
+			});
+			
+			if (!response.ok) {
+				throw new Error('Failed to delete message');
+			}
+			
+			const result = await response.json();
+			return result.success;
+		} catch (error) {
+			console.error('Error deleting message:', error);
+			return false;
+		}
+	}
+	
+	// 清空群聊消息
+	async function clearAllMessages(chatId) {
+		try {
+			const response = await fetch(`/api/admin/channels/${chatId}/messages`, {
+				method: 'DELETE',
+				headers: {
+					'Authorization': `Bearer ${getAuthToken()}`
+				}
+			});
+			
+			if (!response.ok) {
+				throw new Error('Failed to clear messages');
+			}
+			
+			const result = await response.json();
+			return result.success;
+		} catch (error) {
+			console.error('Error clearing messages:', error);
+			return false;
+		}
+	}
+	
 	// 渲染聊天记录
-	function renderChatMessages(chatId) {
+	async function renderChatMessages(chatId) {
+		chatMessages.innerHTML = '<p style="color: #909399; font-size: 14px; text-align: center; padding: 20px;">加载中...</p>';
+		
+		const messages = await fetchChatMessages(chatId);
+		
 		chatMessages.innerHTML = '';
 		
-		// 目前群聊记录存储在客户端，实际应用中应该从服务器获取
-		// 这里暂时显示模拟数据
-		const mockMessages = [
-			{ id: '1', user: '用户1', content: '大家好！', timestamp: '10:00' },
-			{ id: '2', user: '用户2', content: '你好！', timestamp: '10:01' },
-			{ id: '3', user: '用户3', content: '欢迎加入！', timestamp: '10:02' }
-		];
+		if (messages.length === 0) {
+			chatMessages.innerHTML = '<p style="color: #909399; font-size: 14px; text-align: center; padding: 20px;">暂无消息</p>';
+			return;
+		}
 		
-		mockMessages.forEach(msg => {
+		messages.forEach(msg => {
 			const messageDiv = document.createElement('div');
 			messageDiv.className = 'user-chat-message';
 			messageDiv.dataset.messageId = msg.id;
 			messageDiv.innerHTML = `
 				<div class="message-selection"><input type="checkbox" class="message-checkbox" data-message-id="${msg.id}"></div>
-				<div style="font-weight: bold; margin-bottom: 5px;">${msg.user}</div>
+				<div style="font-weight: bold; margin-bottom: 5px;">${msg.userId}</div>
 				<div>${msg.content}</div>
-				<div style="font-size: 12px; color: #909399; text-align: right; margin-top: 5px;">${msg.timestamp}</div>
+				<div style="font-size: 12px; color: #909399; text-align: right; margin-top: 5px;">${new Date(msg.timestamp).toLocaleString()}</div>
 			`;
 			
 			// 添加样式，让消息选择框和内容并排显示
@@ -258,10 +331,13 @@ function initChatManagement() {
 			
 			chatMessages.appendChild(messageDiv);
 		});
+		
+		// 初始化消息选择功能
+		initMessageSelection(chatId);
 	}
 	
 	// 初始化消息选择功能
-	function initMessageSelection() {
+	function initMessageSelection(chatId) {
 		const selectAllCheckbox = document.getElementById('select-all-messages');
 		const deleteSelectedBtn = document.getElementById('delete-selected-messages');
 		const deleteAllBtn = document.getElementById('delete-all-messages');
@@ -275,7 +351,7 @@ function initChatManagement() {
 		});
 		
 		// 删除选中记录
-		deleteSelectedBtn.addEventListener('click', () => {
+		deleteSelectedBtn.addEventListener('click', async () => {
 			const selectedCheckboxes = document.querySelectorAll('.message-checkbox:checked');
 			if (selectedCheckboxes.length === 0) {
 				alert('请先选择要删除的记录');
@@ -283,21 +359,34 @@ function initChatManagement() {
 			}
 			
 			if (confirm(`确定要删除选中的 ${selectedCheckboxes.length} 条记录吗？`)) {
-				selectedCheckboxes.forEach(checkbox => {
-					const messageDiv = checkbox.closest('.user-chat-message');
-					if (messageDiv) {
-						messageDiv.remove();
+				let deletedCount = 0;
+				for (const checkbox of selectedCheckboxes) {
+					const messageId = checkbox.dataset.messageId;
+					const success = await deleteMessage(chatId, messageId);
+					if (success) {
+						deletedCount++;
+						const messageDiv = checkbox.closest('.user-chat-message');
+						if (messageDiv) {
+							messageDiv.remove();
+						}
 					}
-				});
+				}
+				alert(`成功删除 ${deletedCount} 条记录`);
 				selectAllCheckbox.checked = false;
 			}
 		});
 		
 		// 清空所有记录
-		deleteAllBtn.addEventListener('click', () => {
+		deleteAllBtn.addEventListener('click', async () => {
 			if (confirm('确定要清空所有记录吗？此操作不可恢复')) {
-				chatMessages.innerHTML = '';
-				selectAllCheckbox.checked = false;
+				const success = await clearAllMessages(chatId);
+				if (success) {
+					chatMessages.innerHTML = '';
+					selectAllCheckbox.checked = false;
+					alert('所有记录已清空');
+				} else {
+					alert('清空记录失败，请重试');
+				}
 			}
 		});
 	}
@@ -381,7 +470,7 @@ function openAnnounceModal(chat = null) {
 						<label><input type="radio" name="announce-target" value="all" ${!chat ? 'checked' : ''}> 所有群聊</label>
 						<label><input type="radio" name="announce-target" value="selected" ${chat ? 'checked' : ''}> 特定群聊</label>
 						<div id="selected-chats" style="margin-top: 10px; display: ${chat ? 'block' : 'none'};">
-							${chat ? `<div class="selected-chat-item">${chat.name}</div>` : ''}
+							${chat ? `<div class="selected-chat-item" data-chat-id="${chat.id}">${chat.name}</div>` : ''}
 						</div>
 					</div>
 				</div>
@@ -561,21 +650,62 @@ function openAnnounceModal(chat = null) {
 		});
 	});
 	
+	// 获取认证Token
+	function getAuthToken() {
+		const user = JSON.parse(localStorage.getItem('user')) || {};
+		return btoa(JSON.stringify(user));
+	}
+	
 	// 发送公告
 	const sendAnnounceBtn = modal.querySelector('#send-announce');
-	sendAnnounceBtn.addEventListener('click', () => {
+	sendAnnounceBtn.addEventListener('click', async () => {
 		const content = modal.querySelector('#announce-content').value.trim();
 		if (!content) {
 			alert('请输入公告内容');
 			return;
 		}
 		
-		// 发送公告（模拟）
-		alert('公告发送成功！');
-		closeModal();
+		// 获取公告范围
+		const selectedTarget = modal.querySelector('input[name="announce-target"]:checked').value;
+		let target = 'all';
+		if (selectedTarget === 'selected') {
+			const selectedChats = modal.querySelectorAll('#selected-chats .selected-chat-item');
+			target = Array.from(selectedChats).map(chat => chat.dataset.chatId);
+		} else if (chat) {
+			// 如果从群聊列表打开，默认只发送到该群聊
+			target = [chat.id];
+		}
 		
-		// 实际发送公告的逻辑可以在这里添加
-		// 例如：向特定群聊或所有群聊发送公告
+		// 显示加载状态
+		sendAnnounceBtn.disabled = true;
+		sendAnnounceBtn.innerText = '发送中...';
+		
+		try {
+			// 发送公告API请求
+			const response = await fetch('/api/admin/announcements', {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${getAuthToken()}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ target: target, content: content })
+			});
+			
+			const result = await response.json();
+			if (response.ok && result.success) {
+				alert('公告发送成功！');
+				closeModal();
+			} else {
+				throw new Error(result.message || '公告发送失败');
+			}
+		} catch (error) {
+			console.error('发送公告失败:', error);
+			alert('公告发送失败: ' + error.message);
+		} finally {
+			// 恢复按钮状态
+			sendAnnounceBtn.disabled = false;
+			sendAnnounceBtn.innerText = '发送';
+		}
 	});
 }
 
@@ -692,16 +822,49 @@ function initAnnouncement() {
 	const announcementContent = document.getElementById('announcement-content');
 	const statusMessage = document.getElementById('status-message');
 	
-	publishAnnouncementBtn.addEventListener('click', () => {
+	// 获取认证Token
+	function getAuthToken() {
+		const user = JSON.parse(localStorage.getItem('user')) || {};
+		return btoa(JSON.stringify(user));
+	}
+	
+	publishAnnouncementBtn.addEventListener('click', async () => {
 		const content = announcementContent.value.trim();
 		if (!content) {
 			showStatus('请输入公告内容', 'error');
 			return;
 		}
 		
-		// 模拟发布公告
-		showStatus('公告发布成功', 'success');
-		announcementContent.value = '';
+		// 显示加载状态
+		publishAnnouncementBtn.disabled = true;
+		publishAnnouncementBtn.innerText = '发布中...';
+		
+		try {
+			// 发送公告API请求
+			const response = await fetch('/api/admin/announcements', {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${getAuthToken()}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ target: 'all', content: content })
+			});
+			
+			const result = await response.json();
+			if (response.ok && result.success) {
+				showStatus('公告发布成功', 'success');
+				announcementContent.value = '';
+			} else {
+				throw new Error(result.message || '公告发布失败');
+			}
+		} catch (error) {
+			console.error('发布公告失败:', error);
+			showStatus('公告发布失败: ' + error.message, 'error');
+		} finally {
+			// 恢复按钮状态
+			publishAnnouncementBtn.disabled = false;
+			publishAnnouncementBtn.innerText = '发布公告';
+		}
 	});
 	
 	// 显示状态消息
@@ -721,45 +884,78 @@ function initAnnouncement() {
 function initViolationList() {
 	const violationListContainer = document.getElementById('violation-list-container');
 	
-	// 模拟违禁记录数据
-	const mockViolations = [
-		{
-			id: '1',
-			chatName: '群聊1',
-			user: '用户1',
-			content: '这是一条包含违禁词的消息',
-			forbiddenWord: '违禁词',
-			timestamp: '2小时前',
-			status: '未处理'
-		},
-		{
-			id: '2',
-			chatName: '群聊3',
-			user: '用户2',
-			content: '这条消息也包含了违禁词',
-			forbiddenWord: '违禁词',
-			timestamp: '1小时前',
-			status: '未处理'
+	// 获取认证Token
+	function getAuthToken() {
+		const user = JSON.parse(localStorage.getItem('user')) || {};
+		return btoa(JSON.stringify(user));
+	}
+	
+	// 获取违禁记录
+	async function fetchViolations() {
+		try {
+			const response = await fetch('/api/admin/violations', {
+				method: 'GET',
+				headers: {
+					'Authorization': `Bearer ${getAuthToken()}`
+				}
+			});
+			
+			if (!response.ok) {
+				throw new Error('Failed to fetch violations');
+			}
+			
+			const result = await response.json();
+			return result.success ? result.data.violations : [];
+		} catch (error) {
+			console.error('Error fetching violations:', error);
+			return [];
 		}
-	];
+	}
+	
+	// 处理违禁记录
+	async function processViolation(violationId) {
+		try {
+			const response = await fetch(`/api/admin/violations/${violationId}`, {
+				method: 'PUT',
+				headers: {
+					'Authorization': `Bearer ${getAuthToken()}`,
+					'Content-Type': 'application/json'
+				}
+			});
+			
+			if (!response.ok) {
+				throw new Error('Failed to process violation');
+			}
+			
+			const result = await response.json();
+			return result.success;
+		} catch (error) {
+			console.error('Error processing violation:', error);
+			return false;
+		}
+	}
 	
 	// 渲染违禁记录
-	function renderViolationList() {
+	async function renderViolationList() {
+		violationListContainer.innerHTML = '<p style="color: #909399; font-size: 14px; text-align: center; padding: 20px;">加载中...</p>';
+		
+		const violations = await fetchViolations();
+		
 		violationListContainer.innerHTML = '';
 		
-		if (mockViolations.length === 0) {
+		if (violations.length === 0) {
 			violationListContainer.innerHTML = '<p style="color: #909399; font-size: 14px;">暂无违禁记录</p>';
 			return;
 		}
 		
-		mockViolations.forEach(violation => {
+		violations.forEach(violation => {
 			const violationItem = document.createElement('div');
 			violationItem.className = 'violation-item';
 			violationItem.innerHTML = `
 				<div class="violation-header">
 					<div>
 						<div style="font-weight: bold; margin-bottom: 5px;">${violation.chatName} - ${violation.user}</div>
-						<div class="violation-info">违禁词: ${violation.forbiddenWord} · ${violation.timestamp}</div>
+						<div class="violation-info">违禁词: ${violation.forbiddenWord} · ${new Date(violation.timestamp).toLocaleString()}</div>
 					</div>
 					<div style="color: ${violation.status === '未处理' ? '#ff4d4f' : '#67c23a'};">${violation.status}</div>
 				</div>
@@ -768,18 +964,26 @@ function initViolationList() {
 					<div>${violation.content}</div>
 				</div>
 				<div class="violation-actions">
-					<button class="cancel-violation-btn" data-id="${violation.id}">取消违禁</button>
+					<button class="process-violation-btn" data-id="${violation.id}" ${violation.status !== '未处理' ? 'disabled' : ''}>${violation.status === '未处理' ? '处理违规' : '已处理'}</button>
 				</div>
 			`;
 			
-			// 取消违禁按钮点击事件
-			const cancelBtn = violationItem.querySelector('.cancel-violation-btn');
-			cancelBtn.addEventListener('click', () => {
-				const violationId = cancelBtn.dataset.id;
-				const violation = mockViolations.find(v => v.id === violationId);
-				if (violation) {
-					violation.status = '已取消';
-					renderViolationList();
+			// 处理违规按钮点击事件
+			const processBtn = violationItem.querySelector('.process-violation-btn');
+			processBtn.addEventListener('click', async () => {
+				if (confirm('确定要处理这条违规记录吗？')) {
+					processBtn.disabled = true;
+					processBtn.innerText = '处理中...';
+					
+					const success = await processViolation(violation.id);
+					if (success) {
+						alert('违规记录处理成功');
+						renderViolationList();
+					} else {
+						alert('违规记录处理失败，请重试');
+						processBtn.disabled = false;
+						processBtn.innerText = '处理违规';
+					}
 				}
 			});
 			
@@ -789,6 +993,28 @@ function initViolationList() {
 	
 	// 初始渲染违禁记录
 	renderViolationList();
+	
+	// 添加样式
+	const style = document.createElement('style');
+	style.textContent = `
+		.process-violation-btn {
+			padding: 5px 10px;
+			border: 1px solid #409EFF;
+			border-radius: 4px;
+			background-color: white;
+			color: #409EFF;
+			cursor: pointer;
+		}
+		.process-violation-btn:hover:not(:disabled) {
+			background-color: #ecf5ff;
+		}
+		.process-violation-btn:disabled {
+			color: #909399;
+			border-color: #dcdfe6;
+			cursor: not-allowed;
+		}
+	`;
+	document.head.appendChild(style);
 }
 
 // 检查消息是否包含违禁词
