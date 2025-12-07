@@ -118,20 +118,47 @@ window.cloudMailAuth = {
 	isAuthenticated: false,
 	userInfo: null,
 	
-	// 设置认证状态
-		setAuthenticated(status, userInfo = null) {
-			this.isAuthenticated = status;
-			this.userInfo = userInfo;
-			
-			// 如果认证失败，显示登录界面，隐藏聊天界面
-			if (!status) {
-				const loginContainer = $id('login-container');
-				const chatContainer = $id('chat-container');
-				if (loginContainer) loginContainer.style.display = '';
-				if (chatContainer) chatContainer.style.display = 'none';
+	// 初始化时从localStorage读取登录状态
+	init() {
+		const authData = localStorage.getItem('cloudMailAuth');
+		if (authData) {
+			try {
+				const parsedData = JSON.parse(authData);
+				this.isAuthenticated = parsedData.isAuthenticated;
+				this.userInfo = parsedData.userInfo;
+			} catch (error) {
+				console.error('Failed to parse auth data:', error);
+				// 解析失败，清除错误数据
+				localStorage.removeItem('cloudMailAuth');
 			}
-			// 认证成功时不直接隐藏登录界面，保持可见直到用户输入节点信息并提交
-		},
+		}
+	},
+	
+	// 设置认证状态
+	setAuthenticated(status, userInfo = null) {
+		this.isAuthenticated = status;
+		this.userInfo = userInfo;
+		
+		// 将登录状态保存到localStorage
+		if (status) {
+			localStorage.setItem('cloudMailAuth', JSON.stringify({
+				isAuthenticated: status,
+				userInfo: userInfo
+			}));
+		} else {
+			// 登出时清除localStorage中的登录状态
+			localStorage.removeItem('cloudMailAuth');
+		}
+		
+		// 如果认证失败，显示登录界面，隐藏聊天界面
+		if (!status) {
+			const loginContainer = $id('login-container');
+			const chatContainer = $id('chat-container');
+			if (loginContainer) loginContainer.style.display = '';
+			if (chatContainer) chatContainer.style.display = 'none';
+		}
+		// 认证成功时不直接隐藏登录界面，保持可见直到用户输入节点信息并提交
+	},
 	
 	// 检查认证状态
 	checkAuth() {
@@ -143,6 +170,9 @@ window.cloudMailAuth = {
 		return true;
 	}
 };
+
+// 初始化登录状态
+window.cloudMailAuth.init();
 
 // 当 DOM 内容加载完成后执行初始化逻辑
 // Run initialization logic when the DOM content is fully loaded
