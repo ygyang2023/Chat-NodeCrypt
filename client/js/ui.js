@@ -471,123 +471,42 @@ export function loginFormHandler(modal) {
 // 初始化分步登录逻辑
 // Initialize step-by-step login logic
 export function initStepLogin() {
+	console.log('initStepLogin called');
 	// 获取所有登录表单
 	const loginForms = document.querySelectorAll('form[id^="login-form"]');
+	console.log('Found login forms:', loginForms.length);
 	
 	loginForms.forEach(form => {
+		console.log('Processing form:', form.id);
 		const isModal = form.id.includes('modal');
 		const idPrefix = isModal ? '-modal' : '';
-		
-		// 第一步登录按钮点击事件
-		const step1Btn = document.getElementById(`login-btn-step1${idPrefix}`);
-		const step1 = document.getElementById(`login-step1${idPrefix}`);
-		
-		if (step1Btn && step1) {
-			step1Btn.addEventListener('click', async () => {
-				const emailInput = document.getElementById(`cloudMailEmail${idPrefix}`);
-				const passwordInput = document.getElementById(`cloudMailPassword${idPrefix}`);
-				const cloudMailEmail = emailInput.value.trim();
-				const cloudMailPassword = passwordInput.value.trim();
-				
-				// 验证输入
-				if (!cloudMailEmail || !cloudMailPassword) {
-					alert('请输入邮箱账号和密码');
-					return;
-				}
-				
-				// 显示加载状态
-				step1Btn.disabled = true;
-				step1Btn.innerText = '登录中...';
-				
-				// 清除之前的错误信息
-				let errorElement = step1.querySelector('.cloud-mail-error');
-				if (errorElement) {
-					errorElement.remove();
-				}
-				
-				try {
-					// 调用Cloud Mail登录API进行验证
-					const response = await fetch('/api/cloud-mail/login', {
-						method: 'POST',
-						headers: {
-							'Content-Type': 'application/json',
-						},
-						body: JSON.stringify({ email: cloudMailEmail, password: cloudMailPassword })
-					});
-					
-					const result = await response.json();
-					if (!response.ok || !result.success) {
-						throw new Error(result.message || '邮箱账号或密码错误');
-					}
-					
-					// 登录成功，隐藏第一步，显示第二步
-					const step2 = document.getElementById(`login-step2${idPrefix}`);
-					if (step2) {
-						step1.style.display = 'none';
-						step2.style.display = '';
-					}
-					
-					// 检查是否为管理员账号
-					if (cloudMailEmail === 'admin@admin.admin') {
-						const adminOptions = document.getElementById(`admin-options${idPrefix}`);
-						if (adminOptions) {
-							adminOptions.style.display = '';
-						}
-						
-						// 管理员按钮点击事件
-						const adminManageBtn = document.getElementById(`admin-manage-btn${idPrefix}`);
-						if (adminManageBtn) {
-							adminManageBtn.addEventListener('click', () => {
-								// 跳转到管理后台
-								window.location.href = 'https://cnmailcn.dpdns.org/manage';
-							});
-						}
-					}
-					
-					// 保存登录状态
-					window.cloudMailAuth.setAuthenticated(true, result.data);
-					
-				} catch (error) {
-					// 登录失败，显示错误提示
-					console.error('Cloud Mail login error:', error);
-					step1Btn.disabled = false;
-					step1Btn.innerText = '登录';
-					
-					// 创建或更新错误信息
-					errorElement = step1.querySelector('.cloud-mail-error');
-					if (!errorElement) {
-						errorElement = document.createElement('div');
-						errorElement.className = 'cloud-mail-error';
-						errorElement.style.color = '#e74c3c';
-						errorElement.style.fontSize = '13px';
-						errorElement.style.marginTop = '10px';
-						errorElement.style.textAlign = 'center';
-						step1.appendChild(errorElement);
-					}
-					errorElement.textContent = error.message || '邮箱账号或密码错误';
-				}
-			});
-		}
-	});
-}
-
-// 为模态框中的登录表单初始化分步登录逻辑
-export function initModalStepLogin(modal) {
-	const form = modal.querySelector('form[id^="login-form"]');
-	if (form) {
-		const isModal = true;
-		const idPrefix = '-modal';
 		
 		// 第一步登录按钮点击事件
 		const step1Btn = form.querySelector(`#login-btn-step1${idPrefix}`);
 		const step1 = form.querySelector(`#login-step1${idPrefix}`);
 		
+		console.log('Login button:', step1Btn);
+		console.log('Step1 element:', step1);
+		
 		if (step1Btn && step1) {
+			console.log('Adding click event listener to login button:', step1Btn.id);
 			step1Btn.addEventListener('click', async () => {
+				console.log('Login button clicked:', step1Btn.id);
 				const emailInput = form.querySelector(`#cloudMailEmail${idPrefix}`);
 				const passwordInput = form.querySelector(`#cloudMailPassword${idPrefix}`);
+				console.log('Email input:', emailInput);
+				console.log('Password input:', passwordInput);
+				
+				if (!emailInput || !passwordInput) {
+					console.error('Email or password input not found');
+					alert('登录表单元素未找到，请刷新页面重试');
+					return;
+				}
+				
 				const cloudMailEmail = emailInput.value.trim();
 				const cloudMailPassword = passwordInput.value.trim();
+				console.log('Email:', cloudMailEmail);
+				console.log('Password:', cloudMailPassword);
 				
 				// 验证输入
 				if (!cloudMailEmail || !cloudMailPassword) {
@@ -607,6 +526,7 @@ export function initModalStepLogin(modal) {
 				
 				try {
 					// 调用Cloud Mail登录API进行验证
+					console.log('Calling login API...');
 					const response = await fetch('/api/cloud-mail/login', {
 						method: 'POST',
 						headers: {
@@ -615,14 +535,19 @@ export function initModalStepLogin(modal) {
 						body: JSON.stringify({ email: cloudMailEmail, password: cloudMailPassword })
 					});
 					
+					console.log('Login API response:', response);
 					const result = await response.json();
+					console.log('Login API result:', result);
+					
 					if (!response.ok || !result.success) {
 						throw new Error(result.message || '邮箱账号或密码错误');
 					}
 					
 					// 登录成功，隐藏第一步，显示第二步
 					const step2 = form.querySelector(`#login-step2${idPrefix}`);
+					console.log('Step2 element:', step2);
 					if (step2) {
+						console.log('Showing step2, hiding step1');
 						step1.style.display = 'none';
 						step2.style.display = '';
 					}
@@ -631,6 +556,7 @@ export function initModalStepLogin(modal) {
 					if (cloudMailEmail === 'admin@admin.admin') {
 						const adminOptions = form.querySelector(`#admin-options${idPrefix}`);
 						if (adminOptions) {
+							console.log('Showing admin options');
 							adminOptions.style.display = '';
 						}
 						
@@ -645,7 +571,8 @@ export function initModalStepLogin(modal) {
 					}
 					
 					// 保存登录状态
-					window.cloudMailAuth.setAuthenticated(true, result.data);
+					window.cloudMailAuth.setAuthenticated(true, result.data || result);
+					console.log('Login successful, authenticated:', window.cloudMailAuth.isAuthenticated);
 					
 				} catch (error) {
 					// 登录失败，显示错误提示
@@ -662,12 +589,146 @@ export function initModalStepLogin(modal) {
 						errorElement.style.fontSize = '13px';
 						errorElement.style.marginTop = '10px';
 						errorElement.style.textAlign = 'center';
+						errorElement.textContent = error.message || '邮箱账号或密码错误';
 						step1.appendChild(errorElement);
 					}
-					errorElement.textContent = error.message || '邮箱账号或密码错误';
 				}
 			});
+		} else {
+			console.error('Login button or step1 element not found');
 		}
+	});
+}
+
+// 为模态框中的登录表单初始化分步登录逻辑
+export function initModalStepLogin(modal) {
+	console.log('initModalStepLogin called');
+	const form = modal.querySelector('form[id^="login-form"]');
+	console.log('Modal form:', form);
+	
+	if (form) {
+		const isModal = true;
+		const idPrefix = '-modal';
+		console.log('Modal idPrefix:', idPrefix);
+		
+		// 第一步登录按钮点击事件
+		const step1Btn = form.querySelector(`#login-btn-step1${idPrefix}`);
+		const step1 = form.querySelector(`#login-step1${idPrefix}`);
+		
+		console.log('Modal login button:', step1Btn);
+		console.log('Modal step1 element:', step1);
+		
+		if (step1Btn && step1) {
+			console.log('Adding click event listener to modal login button:', step1Btn.id);
+			step1Btn.addEventListener('click', async () => {
+				console.log('Modal login button clicked:', step1Btn.id);
+				const emailInput = form.querySelector(`#cloudMailEmail${idPrefix}`);
+				const passwordInput = form.querySelector(`#cloudMailPassword${idPrefix}`);
+				console.log('Modal email input:', emailInput);
+				console.log('Modal password input:', passwordInput);
+				
+				if (!emailInput || !passwordInput) {
+					console.error('Modal email or password input not found');
+					alert('登录表单元素未找到，请刷新页面重试');
+					return;
+				}
+				
+				const cloudMailEmail = emailInput.value.trim();
+				const cloudMailPassword = passwordInput.value.trim();
+				console.log('Modal email:', cloudMailEmail);
+				console.log('Modal password:', cloudMailPassword);
+				
+				// 验证输入
+				if (!cloudMailEmail || !cloudMailPassword) {
+					alert('请输入邮箱账号和密码');
+					return;
+				}
+				
+				// 显示加载状态
+				step1Btn.disabled = true;
+				step1Btn.innerText = '登录中...';
+				
+				// 清除之前的错误信息
+				let errorElement = step1.querySelector('.cloud-mail-error');
+				if (errorElement) {
+					errorElement.remove();
+				}
+				
+				try {
+					// 调用Cloud Mail登录API进行验证
+					console.log('Modal calling login API...');
+					const response = await fetch('/api/cloud-mail/login', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ email: cloudMailEmail, password: cloudMailPassword })
+					});
+					
+					console.log('Modal login API response:', response);
+					const result = await response.json();
+					console.log('Modal login API result:', result);
+					
+					if (!response.ok || !result.success) {
+						throw new Error(result.message || '邮箱账号或密码错误');
+					}
+					
+					// 登录成功，隐藏第一步，显示第二步
+					const step2 = form.querySelector(`#login-step2${idPrefix}`);
+					console.log('Modal step2 element:', step2);
+					if (step2) {
+						console.log('Modal showing step2, hiding step1');
+						step1.style.display = 'none';
+						step2.style.display = '';
+					}
+					
+					// 检查是否为管理员账号
+					if (cloudMailEmail === 'admin@admin.admin') {
+						const adminOptions = form.querySelector(`#admin-options${idPrefix}`);
+						if (adminOptions) {
+							console.log('Modal showing admin options');
+							adminOptions.style.display = '';
+						}
+						
+						// 管理员按钮点击事件
+						const adminManageBtn = form.querySelector(`#admin-manage-btn${idPrefix}`);
+						if (adminManageBtn) {
+							adminManageBtn.addEventListener('click', () => {
+								// 跳转到管理后台
+								window.location.href = 'https://cnmailcn.dpdns.org/manage';
+							});
+						}
+					}
+					
+					// 保存登录状态
+					window.cloudMailAuth.setAuthenticated(true, result.data || result);
+					console.log('Modal login successful, authenticated:', window.cloudMailAuth.isAuthenticated);
+					
+				} catch (error) {
+					// 登录失败，显示错误提示
+					console.error('Modal Cloud Mail login error:', error);
+					step1Btn.disabled = false;
+					step1Btn.innerText = '登录';
+					
+					// 创建或更新错误信息
+					errorElement = step1.querySelector('.cloud-mail-error');
+					if (!errorElement) {
+						errorElement = document.createElement('div');
+						errorElement.className = 'cloud-mail-error';
+						errorElement.style.color = '#e74c3c';
+						errorElement.style.fontSize = '13px';
+						errorElement.style.marginTop = '10px';
+						errorElement.style.textAlign = 'center';
+						errorElement.textContent = error.message || '邮箱账号或密码错误';
+						step1.appendChild(errorElement);
+					}
+				}
+			});
+		} else {
+			console.error('Modal login button or step1 element not found');
+		}
+	} else {
+		console.error('Modal form not found');
 	}
 }
 
