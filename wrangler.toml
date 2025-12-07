@@ -15,6 +15,12 @@ bindings = [
   { name = "CHAT_ROOM", class_name = "ChatRoom" }
 ]
 
+# 配置D1数据库绑定（cloud-mail数据库）
+[[d1_databases]]
+binding = "DB"
+database_name = "cnmailcn"
+database_id = "9e755ce9-d779-4afe-af61-20996946cf16"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ChatRoom"]

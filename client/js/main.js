@@ -103,6 +103,43 @@ window.setupEmojiPicker = setupEmojiPicker;
 window.handleFileMessage = handleFileMessage;
 window.downloadFile = downloadFile;
 
+// 全局状态管理
+// Global state management
+window.cloudMailAuth = {
+	isAuthenticated: false,
+	userInfo: null,
+	
+	// 设置认证状态
+	setAuthenticated(status, userInfo = null) {
+		this.isAuthenticated = status;
+		this.userInfo = userInfo;
+		
+		// 如果认证成功，隐藏登录界面，显示聊天界面
+		if (status) {
+			const loginContainer = $id('login-container');
+			const chatContainer = $id('chat-container');
+			if (loginContainer) loginContainer.style.display = 'none';
+			if (chatContainer) chatContainer.style.display = '';
+		} else {
+			// 如果认证失败，显示登录界面，隐藏聊天界面
+			const loginContainer = $id('login-container');
+			const chatContainer = $id('chat-container');
+			if (loginContainer) loginContainer.style.display = '';
+			if (chatContainer) chatContainer.style.display = 'none';
+		}
+	},
+	
+	// 检查认证状态
+	checkAuth() {
+		if (!this.isAuthenticated) {
+			// 如果未认证，重定向到登录界面
+			this.setAuthenticated(false);
+			return false;
+		}
+		return true;
+	}
+};
+
 // 当 DOM 内容加载完成后执行初始化逻辑
 // Run initialization logic when the DOM content is fully loaded
 window.addEventListener('DOMContentLoaded', () => {
@@ -128,6 +165,8 @@ window.addEventListener('DOMContentLoaded', () => {
 	}
 	// 阻止用户输入用户名、房间名和密码时输入空格
 	// Prevent space input for username, room name, and password fields
+	preventSpaceInput($id('cloudMailEmail'));
+	preventSpaceInput($id('cloudMailPassword'));
 	preventSpaceInput($id('userName'));
 	preventSpaceInput($id('roomName'));
 	preventSpaceInput($id('password'));
@@ -149,6 +188,8 @@ window.addEventListener('DOMContentLoaded', () => {
 	if (settingsBtn) {
 		settingsBtn.onclick = (e) => {
 			e.stopPropagation();  // 阻止事件冒泡 / Stop event from bubbling
+			// 检查认证状态
+			if (!window.cloudMailAuth.checkAuth()) return;
 			openSettingsPanel(); // 打开设置面板 / Open settings panel
 		}
 	}
@@ -172,6 +213,9 @@ window.addEventListener('DOMContentLoaded', () => {
 	if (input) {
 		input.focus(); // 自动聚焦 / Auto focus
 		input.addEventListener('keydown', (e) => {
+			// 检查认证状态
+			if (!window.cloudMailAuth.checkAuth()) return;
+						
 			// 按下 Enter 键并且不按 Shift，表示发送消息
 			// Pressing Enter (without Shift) sends the message
 			if (e.key === 'Enter' && !e.shiftKey) {
@@ -184,6 +228,9 @@ window.addEventListener('DOMContentLoaded', () => {
 	// 发送消息的统一函数
 	// Unified function to send messages
 	function sendMessage() {
+		// 检查认证状态
+		if (!window.cloudMailAuth.checkAuth()) return;
+					
 		const text = input.innerText.trim(); // 获取输入的文本 / Get input text
 		const images = imagePasteHandler ? imagePasteHandler.getCurrentImages() : []; // 获取所有图片
 
@@ -248,7 +295,7 @@ window.addEventListener('DOMContentLoaded', () => {
 							c: rd.privateChatTargetId
 						};
 						const encryptedMessageForServer = rd.chat.encryptServerMessage(serverRelayPayload, rd.chat.serverShared);
-						rd.chat.sendMessage(encryptedMessageForServer);					addMsg(text, false, 'text_private');
+						rd.chat.sendMessage(encryptedMessageForServer);						addMsg(text, false, 'text_private');
 					} else {
 						addSystemMsg(`${t('system.private_message_failed', 'Cannot send private message to')} ${rd.privateChatTargetName}. ${t('system.user_not_connected', 'User might not be fully connected.')}`)
 					}
@@ -273,7 +320,11 @@ window.addEventListener('DOMContentLoaded', () => {
 	// Add click event for send button
 	const sendButton = document.querySelector('.send-message-btn');
 	if (sendButton) {
-		sendButton.addEventListener('click', sendMessage);
+		sendButton.addEventListener('click', () => {
+			// 检查认证状态
+			if (!window.cloudMailAuth.checkAuth()) return;
+			sendMessage();
+		});
 	}
 	
 	// 设置发送文件功能
@@ -283,6 +334,9 @@ window.addEventListener('DOMContentLoaded', () => {
 		attachBtnSelector: '.chat-attach-btn', // 附件按钮选择器 / Attach button selector
 		fileInputSelector: '.new-message-wrapper input[type="file"]', // 文件输入框选择器 / File input selector
 		onSend: (message) => {
+			// 检查认证状态
+			if (!window.cloudMailAuth.checkAuth()) return;
+						
 			const rd = roomsData[activeRoomIndex];
 			if (rd && rd.chat) {
 				const userName = rd.myUserName || '';
@@ -346,6 +400,9 @@ window.addEventListener('DOMContentLoaded', () => {
 	// On mobile, clicking room list closes sidebar
 	if (roomList) {
 		roomList.addEventListener('click', () => {
+			// 检查认证状态
+			if (!window.cloudMailAuth.checkAuth()) return;
+						
 			if (isMobile()) {
 				sidebar?.classList.remove('mobile-open');
 				sidebarMask?.classList.remove('active');
@@ -358,12 +415,18 @@ window.addEventListener('DOMContentLoaded', () => {
 	const memberTabs = $id('member-tabs');
 	if (memberTabs) {
 		memberTabs.addEventListener('click', () => {
+			// 检查认证状态
+			if (!window.cloudMailAuth.checkAuth()) return;
+						
 			if (isMobile()) {
 				removeClass(rightbar, 'mobile-open');
 				removeClass(rightbarMask, 'active');
 			}
 		});
 	}
+	
+	// 初始状态：未认证，显示登录界面
+	window.cloudMailAuth.setAuthenticated(false);
 });
 
 // Listen for language change events

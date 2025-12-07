@@ -1,5 +1,92 @@
 import { generateClientId, encryptMessage, decryptMessage, logEvent, isString, isObject, getTime } from './utils.js';
 
+// Cloud Mail密码验证工具函数
+const saltHashUtils = {
+  generateSalt(length = 16) {
+    const array = new Uint8Array(length);
+    crypto.getRandomValues(array);
+    return btoa(String.fromCharCode(...array));
+  },
+  
+  async genHashPassword(password, salt) {
+    const data = new TextEncoder().encode(salt + password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return btoa(String.fromCharCode(...hashArray));
+  },
+  
+  async verifyPassword(inputPassword, salt, storedHash) {
+    const hash = await this.genHashPassword(inputPassword, salt);
+    return hash === storedHash;
+  }
+};
+
+// Cloud Mail登录验证处理函数
+async function handleCloudMailLogin(request, env) {
+  try {
+    // 解析请求体
+    const { email, password } = await request.json();
+    
+    if (!email || !password) {
+      return new Response(JSON.stringify({ success: false, message: 'Email and password are required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // 查询D1数据库获取用户信息
+    // 注意：这里使用的是cloud-mail的user表结构
+    const stmt = env.DB.prepare('SELECT * FROM user WHERE email = ? AND is_del = 0');
+    const result = await stmt.bind(email).first();
+    
+    if (!result) {
+      return new Response(JSON.stringify({ success: false, message: 'User not found' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // 验证密码
+    const isPasswordValid = await saltHashUtils.verifyPassword(password, result.salt, result.password);
+    
+    if (!isPasswordValid) {
+      return new Response(JSON.stringify({ success: false, message: 'Invalid password' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // 检查用户状态
+    if (result.status === 1) {
+      return new Response(JSON.stringify({ success: false, message: 'User is banned' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // 登录成功，返回用户信息
+    return new Response(JSON.stringify({
+      success: true,
+      data: {
+        userId: result.user_id,
+        email: result.email,
+        // 使用email作为昵称
+        nickname: result.email.split('@')[0]
+      }
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('Cloud Mail login error:', error);
+    return new Response(JSON.stringify({ success: false, message: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -14,7 +101,10 @@ export default {
 
     // 处理API请求
     if (url.pathname.startsWith('/api/')) {
-      // ...API 逻辑...
+      // Cloud Mail登录验证API
+      if (url.pathname === '/api/cloud-mail/login' && request.method === 'POST') {
+        return handleCloudMailLogin(request, env);
+      }
       return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
     }
 

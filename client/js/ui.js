@@ -406,58 +406,107 @@ export function preventSpaceInput(input) {
 // Login form submit handler
 // 登录表单提交处理函数
 export function loginFormHandler(modal) {
-	return function(e) {
+	return async function(e) {
 		e.preventDefault();
-		let userName, roomName, password, btn, roomInput, warnTip;
+		let cloudMailEmail, cloudMailPassword, userName, roomName, password, btn, roomInput, warnTip;
 		if (modal) {
+			cloudMailEmail = document.getElementById('cloudMailEmail-modal').value.trim();
+			cloudMailPassword = document.getElementById('cloudMailPassword-modal').value.trim();
 			userName = document.getElementById('userName-modal').value.trim();
 			roomName = document.getElementById('roomName-modal').value.trim();
 			password = document.getElementById('password-modal').value.trim();
 			btn = modal.querySelector('.login-btn');
 			roomInput = document.getElementById('roomName-modal')
 		} else {
+			cloudMailEmail = document.getElementById('cloudMailEmail').value.trim();
+			cloudMailPassword = document.getElementById('cloudMailPassword').value.trim();
 			userName = document.getElementById('userName').value.trim();
 			roomName = document.getElementById('roomName').value.trim();
 			password = document.getElementById('password').value.trim();
 			btn = document.querySelector('#login-form .login-btn');
 			roomInput = document.getElementById('roomName')
 		}
-		const exists = roomsData.some(rd => rd.roomName && rd.roomName.toLowerCase() === roomName.toLowerCase());
-		if (roomInput) {
-			roomInput.style.border = '';
-			roomInput.style.background = '';
-			if (roomInput._warnTip) {
-				roomInput.parentNode.removeChild(roomInput._warnTip);
-				roomInput._warnTip = null
-			}
+		
+		// 验证Cloud Mail账号密码
+		if (btn) {
+			btn.disabled = true;
+			btn.innerText = t('ui.connecting', 'Verifying Cloud Mail account...')
 		}
-		if (exists) {
+		
+		try {
+			// 调用Cloud Mail登录API进行验证
+			const response = await fetch('/api/cloud-mail/login', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ email: cloudMailEmail, password: cloudMailPassword })
+			});
+			
+			const result = await response.json();
+			if (!response.ok || !result.success) {
+				throw new Error(result.message || 'Cloud Mail login failed');
+			}
+			
+			// Cloud Mail登录成功，继续节点验证
+			const exists = roomsData.some(rd => rd.roomName && rd.roomName.toLowerCase() === roomName.toLowerCase());
 			if (roomInput) {
-				roomInput.style.border = '1.5px solid #e74c3c';
-				roomInput.style.background = '#fff6f6';
-				warnTip = document.createElement('div');
-				warnTip.style.color = '#e74c3c';
-				warnTip.style.fontSize = '13px';
-				warnTip.style.marginTop = '4px';
-				warnTip.textContent = t('ui.node_exists', 'Node already exists');
-				roomInput.parentNode.appendChild(warnTip);
-				roomInput._warnTip = warnTip;
-				roomInput.focus()
+				roomInput.style.border = '';
+				roomInput.style.background = '';
+				if (roomInput._warnTip) {
+					roomInput.parentNode.removeChild(roomInput._warnTip);
+					roomInput._warnTip = null
+				}
+			}
+			if (exists) {
+				if (roomInput) {
+					roomInput.style.border = '1.5px solid #e74c3c';
+					roomInput.style.background = '#fff6f6';
+					warnTip = document.createElement('div');
+					warnTip.style.color = '#e74c3c';
+					warnTip.style.fontSize = '13px';
+					warnTip.style.marginTop = '4px';
+					warnTip.textContent = t('ui.node_exists', 'Node already exists');
+					roomInput.parentNode.appendChild(warnTip);
+					roomInput._warnTip = warnTip;
+					roomInput.focus()
+				}				if (btn) {
+					btn.disabled = false;
+					btn.innerText = t('ui.enter', 'ENTER')
+				}
+				return
 			}			if (btn) {
+				btn.innerText = t('ui.connecting', 'Connecting to node...')
+			}
+			
+			window.joinRoom(userName, roomName, password, modal, function(success) {
+				if (!success && btn) {
+					btn.disabled = false;
+					btn.innerText = 'ENTER'
+				}
+			})
+		} catch (error) {
+			// Cloud Mail登录失败
+			console.error('Cloud Mail login error:', error);
+			if (btn) {
 				btn.disabled = false;
 				btn.innerText = t('ui.enter', 'ENTER')
 			}
-			return
-		}		if (btn) {
-			btn.disabled = true;
-			btn.innerText = t('ui.connecting', 'Connecting...')
-		}
-		window.joinRoom(userName, roomName, password, modal, function(success) {
-			if (!success && btn) {
-				btn.disabled = false;
-				btn.innerText = 'ENTER'
+			
+			// 显示错误提示
+			const loginForm = modal ? modal.querySelector('#login-form-modal') : document.getElementById('login-form');
+			let errorElement = loginForm.querySelector('.cloud-mail-error');
+			if (!errorElement) {
+				errorElement = document.createElement('div');
+				errorElement.className = 'cloud-mail-error';
+				errorElement.style.color = '#e74c3c';
+				errorElement.style.fontSize = '13px';
+				errorElement.style.marginTop = '10px';
+				errorElement.style.textAlign = 'center';
+				loginForm.appendChild(errorElement);
 			}
-		})
+			errorElement.textContent = error.message || 'Invalid Cloud Mail credentials';
+		}
 	}
 }
 
@@ -466,6 +515,14 @@ export function loginFormHandler(modal) {
 export function generateLoginForm(isModal = false) {
 	const idPrefix = isModal ? '-modal' : '';
 	return `		<div class="input-group">
+			<input id="cloudMailEmail${idPrefix}" type="email" autocomplete="email" required placeholder="">
+			<label for="cloudMailEmail${idPrefix}" class="floating-label">Cloud Mail Email</label>
+		</div>
+		<div class="input-group">
+			<input id="cloudMailPassword${idPrefix}" type="password" autocomplete="current-password" required placeholder="">
+			<label for="cloudMailPassword${idPrefix}" class="floating-label">Cloud Mail Password</label>
+		</div>
+		<div class="input-group">
 			<input id="userName${idPrefix}" type="text" autocomplete="username" required minlength="1" maxlength="15" placeholder="">
 			<label for="userName${idPrefix}" class="floating-label">${t('ui.username', 'Username')}</label>
 		</div>
@@ -486,6 +543,8 @@ export function openLoginModal() {
 	modal.innerHTML = `<div class="login-modal-bg"></div><div class="login-modal-card"><button class="login-modal-close login-modal-close-abs">&times;</button><h1>${t('ui.enter_node', 'Enter a Node')}</h1><form id="login-form-modal">${generateLoginForm(true)}</form></div>`;
 	document.body.appendChild(modal);
 	modal.querySelector('.login-modal-close').onclick = () => modal.remove();
+	preventSpaceInput(modal.querySelector('#cloudMailEmail-modal'));
+	preventSpaceInput(modal.querySelector('#cloudMailPassword-modal'));
 	preventSpaceInput(modal.querySelector('#userName-modal'));
 	preventSpaceInput(modal.querySelector('#roomName-modal'));
 	preventSpaceInput(modal.querySelector('#password-modal'));	const form = modal.querySelector('#login-form-modal');
