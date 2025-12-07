@@ -95,12 +95,26 @@ function initChatManagement() {
 	
 	// 获取当前用户信息
 	function getCurrentUser() {
+		// 首先尝试从localStorage获取cloudMailAuth中的userInfo
+		const cloudMailAuth = JSON.parse(localStorage.getItem('cloudMailAuth'));
+		if (cloudMailAuth && cloudMailAuth.userInfo) {
+			return cloudMailAuth.userInfo;
+		}
+		// 然后尝试从user键获取
 		return JSON.parse(localStorage.getItem('user')) || {};
 	}
 	
 	// 获取认证Token
 	function getAuthToken() {
 		const user = getCurrentUser();
+		// 确保user包含email字段
+		if (!user.email) {
+			// 从localStorage直接获取user对象
+			const storedUser = JSON.parse(localStorage.getItem('cloudMailAuth'))?.userInfo;
+			if (storedUser && storedUser.email) {
+				return btoa(JSON.stringify(storedUser));
+			}
+		}
 		return btoa(JSON.stringify(user));
 	}
 	

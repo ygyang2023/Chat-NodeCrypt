@@ -89,6 +89,7 @@ async function handleCloudMailLogin(request, env) {
 
 // 检查是否为管理员
 function isAdmin(email) {
+  // 允许admin@admin.admin访问
   return email === 'admin@admin.admin';
 }
 
@@ -100,14 +101,34 @@ async function verifyAdminAuth(request) {
   }
   
   try {
-    const token = authHeader.split(' ')[1];
-    const decoded = JSON.parse(atob(token));
+    // 解析Authorization头
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+      return { success: false, response: new Response(JSON.stringify({ success: false, message: 'Invalid Authorization header format' }), { status: 401, headers: { 'Content-Type': 'application/json' } }) };
+    }
+    
+    const token = parts[1];
+    let decoded;
+    try {
+      decoded = JSON.parse(atob(token));
+    } catch (decodeError) {
+      return { success: false, response: new Response(JSON.stringify({ success: false, message: 'Invalid token format' }), { status: 401, headers: { 'Content-Type': 'application/json' } }) };
+    }
+    
+    // 检查是否包含email字段
+    if (!decoded || !decoded.email) {
+      return { success: false, response: new Response(JSON.stringify({ success: false, message: 'Token missing email field' }), { status: 401, headers: { 'Content-Type': 'application/json' } }) };
+    }
+    
+    // 检查是否为管理员
     if (!isAdmin(decoded.email)) {
       return { success: false, response: new Response(JSON.stringify({ success: false, message: 'Admin permission required' }), { status: 403, headers: { 'Content-Type': 'application/json' } }) };
     }
+    
     return { success: true, decoded };
   } catch (error) {
-    return { success: false, response: new Response(JSON.stringify({ success: false, message: 'Invalid token' }), { status: 401, headers: { 'Content-Type': 'application/json' } }) };
+    console.error('Admin auth error:', error);
+    return { success: false, response: new Response(JSON.stringify({ success: false, message: 'Internal authentication error' }), { status: 500, headers: { 'Content-Type': 'application/json' } }) };
   }
 }
 
@@ -163,20 +184,26 @@ export default {
 };
 
 export class ChatRoom {  constructor(state, env) {
-    this.state = state;
-    
-    // Use objects like original server.js instead of Maps
-    this.clients = {};
-    this.channels = {};
-    
-    this.config = {
-      seenTimeout: 60000,
-      debug: false
-    };
-    
-    // Initialize RSA key pair
-    this.initRSAKeyPair();
-  }
+		this.state = state;
+		
+		// Use objects like original server.js instead of Maps
+		this.clients = {};
+		this.channels = {};
+		
+		// 存储公告和违禁记录
+		this.announcements = [];
+		this.violations = [];
+		// 存储群聊消息记录
+		this.chatMessages = {};
+		
+		this.config = {
+			seenTimeout: 60000,
+			debug: false
+		};
+		
+		// Initialize RSA key pair
+		this.initRSAKeyPair();
+	}
 
   async initRSAKeyPair() {
     try {
@@ -304,6 +331,164 @@ export class ChatRoom {  constructor(state, env) {
           return new Response(JSON.stringify({
             success: false,
             message: '群聊不存在'
+          }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+        }
+      }
+      
+      // 管理员API：获取群聊消息
+      if (url.pathname.match(/^\/api\/admin\/channels\/[^\/]+\/messages$/) && request.method === 'GET') {
+        const channelId = url.pathname.split('/').slice(-2, -1)[0];
+        const messages = this.chatMessages[channelId] || [];
+        
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            messages: messages
+          }
+        }), { headers: { 'Content-Type': 'application/json' } });
+      }
+      
+      // 管理员API：删除群聊消息
+      if (url.pathname.match(/^\/api\/admin\/channels\/[^\/]+\/messages\/[^\/]+$/) && request.method === 'DELETE') {
+        const pathParts = url.pathname.split('/');
+        const channelId = pathParts[pathParts.length - 3];
+        const messageId = pathParts[pathParts.length - 1];
+        
+        if (this.chatMessages[channelId]) {
+          this.chatMessages[channelId] = this.chatMessages[channelId].filter(msg => msg.id !== messageId);
+          
+          return new Response(JSON.stringify({
+            success: true,
+            message: '消息删除成功'
+          }), { headers: { 'Content-Type': 'application/json' } });
+        } else {
+          return new Response(JSON.stringify({
+            success: false,
+            message: '群聊不存在'
+          }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+        }
+      }
+      
+      // 管理员API：清空群聊消息
+      if (url.pathname.match(/^\/api\/admin\/channels\/[^\/]+\/messages$/) && request.method === 'DELETE') {
+        const channelId = url.pathname.split('/').slice(-2, -1)[0];
+        
+        if (this.chatMessages[channelId]) {
+          this.chatMessages[channelId] = [];
+          
+          return new Response(JSON.stringify({
+            success: true,
+            message: '消息清空成功'
+          }), { headers: { 'Content-Type': 'application/json' } });
+        } else {
+          return new Response(JSON.stringify({
+            success: false,
+            message: '群聊不存在'
+          }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+        }
+      }
+      
+      // 管理员API：发布公告
+      if (url.pathname === '/api/admin/announcements' && request.method === 'POST') {
+        try {
+          const body = await request.json();
+          const { target, content } = body;
+          
+          // 生成公告ID
+          const announcementId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+          
+          // 保存公告
+          const announcement = {
+            id: announcementId,
+            target: target,
+            content: content,
+            createdAt: new Date().toISOString()
+          };
+          this.announcements.push(announcement);
+          
+          // 通知目标群聊的成员
+          if (target === 'all') {
+            // 通知所有群聊成员
+            for (const channelId in this.channels) {
+              for (const clientId of this.channels[channelId]) {
+                const client = this.clients[clientId];
+                if (client && client.connection && client.connection.readyState === 1) {
+                  try {
+                    const messageObj = {
+                      a: 'announcement',
+                      p: content
+                    };
+                    const encrypted = encryptMessage(messageObj, client.shared);
+                    this.sendMessage(client.connection, encrypted);
+                  } catch (error) {
+                    logEvent('announcement-notify', [clientId, error], 'error');
+                  }
+                }
+              }
+            }
+          } else if (Array.isArray(target)) {
+            // 通知特定群聊成员
+            for (const channelId of target) {
+              if (this.channels[channelId]) {
+                for (const clientId of this.channels[channelId]) {
+                  const client = this.clients[clientId];
+                  if (client && client.connection && client.connection.readyState === 1) {
+                    try {
+                      const messageObj = {
+                        a: 'announcement',
+                        p: content
+                      };
+                      const encrypted = encryptMessage(messageObj, client.shared);
+                      this.sendMessage(client.connection, encrypted);
+                    } catch (error) {
+                      logEvent('announcement-notify', [clientId, error], 'error');
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
+          return new Response(JSON.stringify({
+            success: true,
+            message: '公告发布成功',
+            data: announcement
+          }), { headers: { 'Content-Type': 'application/json' } });
+        } catch (error) {
+          return new Response(JSON.stringify({
+            success: false,
+            message: '发布公告失败'
+          }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+        }
+      }
+      
+      // 管理员API：获取违禁记录
+      if (url.pathname === '/api/admin/violations' && request.method === 'GET') {
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            violations: this.violations
+          }
+        }), { headers: { 'Content-Type': 'application/json' } });
+      }
+      
+      // 管理员API：处理违禁记录
+      if (url.pathname.match(/^\/api\/admin\/violations\/[^\/]+$/) && request.method === 'PUT') {
+        const violationId = url.pathname.split('/').pop();
+        const violation = this.violations.find(v => v.id === violationId);
+        
+        if (violation) {
+          violation.status = '已处理';
+          
+          return new Response(JSON.stringify({
+            success: true,
+            message: '违禁记录处理成功',
+            data: violation
+          }), { headers: { 'Content-Type': 'application/json' } });
+        } else {
+          return new Response(JSON.stringify({
+            success: false,
+            message: '违禁记录不存在'
           }), { status: 404, headers: { 'Content-Type': 'application/json' } });
         }
       }
@@ -567,6 +752,47 @@ export class ChatRoom {  constructor(state, env) {
         return isString(decrypted.p[member]) && this.isClientInChannel(targetClient, channel);
       });
 
+      // 保存消息到群聊记录
+      for (const member of validMembers) {
+        const messageContent = decrypted.p[member];
+        // 生成消息ID
+        const messageId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+        
+        // 创建消息对象
+        const message = {
+          id: messageId,
+          userId: clientId,
+          content: messageContent,
+          timestamp: new Date().toISOString(),
+          type: 'channel'
+        };
+        
+        // 保存到群聊消息记录
+        if (!this.chatMessages[channel]) {
+          this.chatMessages[channel] = [];
+        }
+        this.chatMessages[channel].push(message);
+        
+        // 检查违禁词（这里简化处理，实际应该从数据库或配置中获取违禁词列表）
+        const forbiddenWords = ['违禁词', '敏感词', '不良内容'];
+        const hasForbiddenWord = forbiddenWords.some(word => messageContent.includes(word));
+        
+        if (hasForbiddenWord) {
+          // 生成违禁记录
+          const violationId = Date.now().toString() + Math.random().toString(36).substr(2, 5);
+          const violation = {
+            id: violationId,
+            chatName: channel,
+            user: clientId,
+            content: messageContent,
+            forbiddenWord: forbiddenWords.find(word => messageContent.includes(word)),
+            timestamp: new Date().toISOString(),
+            status: '未处理'
+          };
+          this.violations.push(violation);
+        }
+      }
+
       // 处理所有有效的目标成员
       for (const member of validMembers) {
         const targetClient = this.clients[member];
@@ -574,7 +800,8 @@ export class ChatRoom {  constructor(state, env) {
           a: 'c',
           p: decrypted.p[member],
           c: clientId
-        };        const encrypted = encryptMessage(messageObj, targetClient.shared);
+        };
+        const encrypted = encryptMessage(messageObj, targetClient.shared);
         this.sendMessage(targetClient.connection, encrypted);
 
         messageObj.p = null;
