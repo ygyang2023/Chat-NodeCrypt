@@ -387,34 +387,20 @@ export function setupMoreBtnMenu() {
 	});
 }
 
-// Prevent space and special character input
-// 禁止输入空格和特殊字符
+// Prevent space input only
+// 只禁止输入空格
 export function preventSpaceInput(input) {
 	if (!input) return;
-	
-	// 检查是否为邮箱输入框
-	const isEmailInput = input.id.includes('cloudMailEmail') || input.type === 'email';
 	
 	input.addEventListener('keydown', function(e) {
 		if (e.key === ' ') {
 			e.preventDefault()
 		}
-		// 如果是邮箱输入框，允许@符号和其他邮箱相关特殊字符
-		if (!isEmailInput && /[\u0000-\u007f]/.test(e.key) && /[\p{P}\p{S}]/u.test(e.key) && e.key !== "'") {
-			e.preventDefault()
-		}
 	});
 	
 	input.addEventListener('input', function(e) {
-		if (isEmailInput) {
-			// 邮箱输入框只移除空格
-			input.value = input.value.replace(/\s/g, '')
-		} else {
-			// 其他输入框移除空格和特殊字符
-			input.value = input.value.replace(/[\s\p{P}\p{S}]/gu, function(match) {
-				return match === "'" ? "'" : ''
-			})
-		}
+		// 只移除空格，允许所有特殊字符
+		input.value = input.value.replace(/\s/g, '')
 	})
 }
 
@@ -423,113 +409,165 @@ export function preventSpaceInput(input) {
 export function loginFormHandler(modal) {
 	return async function(e) {
 		e.preventDefault();
-		let cloudMailEmail, cloudMailPassword, userName, roomName, password, btn, roomInput, warnTip;
+		let userName, roomName, password, btn, roomInput, warnTip;
+		const isModal = !!modal;
+		const idPrefix = isModal ? '-modal' : '';
+		
 		if (modal) {
-			cloudMailEmail = document.getElementById('cloudMailEmail-modal').value.trim();
-			cloudMailPassword = document.getElementById('cloudMailPassword-modal').value.trim();
 			userName = document.getElementById('userName-modal').value.trim();
 			roomName = document.getElementById('roomName-modal').value.trim();
 			password = document.getElementById('password-modal').value.trim();
-			btn = modal.querySelector('.login-btn');
+			btn = modal.querySelector('#login-form-modal .login-btn[type="submit"]');
 			roomInput = document.getElementById('roomName-modal')
 		} else {
-			cloudMailEmail = document.getElementById('cloudMailEmail').value.trim();
-			cloudMailPassword = document.getElementById('cloudMailPassword').value.trim();
 			userName = document.getElementById('userName').value.trim();
 			roomName = document.getElementById('roomName').value.trim();
 			password = document.getElementById('password').value.trim();
-			btn = document.querySelector('#login-form .login-btn');
+			btn = document.querySelector('#login-form .login-btn[type="submit"]');
 			roomInput = document.getElementById('roomName')
 		}
 		
-		// 验证Cloud Mail账号密码
-		if (btn) {
+		// 处理节点连接
+		const exists = roomsData.some(rd => rd.roomName && rd.roomName.toLowerCase() === roomName.toLowerCase());
+		if (roomInput) {
+			roomInput.style.border = '';
+			roomInput.style.background = '';
+			if (roomInput._warnTip) {
+				roomInput.parentNode.removeChild(roomInput._warnTip);
+				roomInput._warnTip = null
+			}
+		}
+		if (exists) {
+			if (roomInput) {
+				roomInput.style.border = '1.5px solid #e74c3c';
+				roomInput.style.background = '#fff6f6';
+				warnTip = document.createElement('div');
+				warnTip.style.color = '#e74c3c';
+				warnTip.style.fontSize = '13px';
+				warnTip.style.marginTop = '4px';
+				warnTip.textContent = t('ui.node_exists', 'Node already exists');
+				roomInput.parentNode.appendChild(warnTip);
+				roomInput._warnTip = warnTip;
+				roomInput.focus()
+			}				if (btn) {
+				btn.disabled = false;
+				btn.innerText = t('ui.enter', '进入群聊')
+			}
+			return
+		}			if (btn) {
 			btn.disabled = true;
-			btn.innerText = t('ui.connecting', 'Verifying Cloud Mail account...')
+			btn.innerText = t('ui.connecting', 'Connecting to node...')
 		}
 		
-		try {
-			// 调用Cloud Mail登录API进行验证
-			const response = await fetch('/api/cloud-mail/login', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({ email: cloudMailEmail, password: cloudMailPassword })
-			});
-			
-			const result = await response.json();
-			if (!response.ok || !result.success) {
-				throw new Error(result.message || 'Cloud Mail login failed');
-			}
-			
-			// Cloud Mail登录成功，继续节点验证
-			const exists = roomsData.some(rd => rd.roomName && rd.roomName.toLowerCase() === roomName.toLowerCase());
-			if (roomInput) {
-				roomInput.style.border = '';
-				roomInput.style.background = '';
-				if (roomInput._warnTip) {
-					roomInput.parentNode.removeChild(roomInput._warnTip);
-					roomInput._warnTip = null
-				}
-			}
-			if (exists) {
-				if (roomInput) {
-					roomInput.style.border = '1.5px solid #e74c3c';
-					roomInput.style.background = '#fff6f6';
-					warnTip = document.createElement('div');
-					warnTip.style.color = '#e74c3c';
-					warnTip.style.fontSize = '13px';
-					warnTip.style.marginTop = '4px';
-					warnTip.textContent = t('ui.node_exists', 'Node already exists');
-					roomInput.parentNode.appendChild(warnTip);
-					roomInput._warnTip = warnTip;
-					roomInput.focus()
-				}				if (btn) {
-					btn.disabled = false;
-					btn.innerText = t('ui.enter', 'ENTER')
-				}
-				return
-			}			if (btn) {
-				btn.innerText = t('ui.connecting', 'Connecting to node...')
-			}
-			
-			window.joinRoom(userName, roomName, password, modal, function(success) {
-				if (!success && btn) {
-					btn.disabled = false;
-					btn.innerText = 'ENTER'
-				}
-			})
-		} catch (error) {
-			// Cloud Mail登录失败
-			console.error('Cloud Mail login error:', error);
-			if (btn) {
+		window.joinRoom(userName, roomName, password, modal, function(success) {
+			if (!success && btn) {
 				btn.disabled = false;
-				btn.innerText = t('ui.enter', 'ENTER')
+				btn.innerText = t('ui.enter', '进入群聊')
 			}
-			
-			// 显示错误提示
-			const loginForm = modal ? modal.querySelector('#login-form-modal') : document.getElementById('login-form');
-			let errorElement = loginForm.querySelector('.cloud-mail-error');
-			if (!errorElement) {
-				errorElement = document.createElement('div');
-				errorElement.className = 'cloud-mail-error';
-				errorElement.style.color = '#e74c3c';
-				errorElement.style.fontSize = '13px';
-				errorElement.style.marginTop = '10px';
-				errorElement.style.textAlign = 'center';
-				loginForm.appendChild(errorElement);
-			}
-			errorElement.textContent = error.message || 'Invalid Cloud Mail credentials';
-		}
+		})
 	}
+}
+
+// 初始化分步登录逻辑
+// Initialize step-by-step login logic
+export function initStepLogin() {
+	// 获取所有登录表单
+	const loginForms = document.querySelectorAll('form[id^="login-form"]');
+	
+	loginForms.forEach(form => {
+		const isModal = form.id.includes('modal');
+		const idPrefix = isModal ? '-modal' : '';
+		
+		// 第一步登录按钮点击事件
+		const step1Btn = document.getElementById(`login-btn-step1${idPrefix}`);
+		if (step1Btn) {
+			step1Btn.addEventListener('click', async () => {
+				const emailInput = document.getElementById(`cloudMailEmail${idPrefix}`);
+				const passwordInput = document.getElementById(`cloudMailPassword${idPrefix}`);
+				const cloudMailEmail = emailInput.value.trim();
+				const cloudMailPassword = passwordInput.value.trim();
+				
+				// 验证输入
+				if (!cloudMailEmail || !cloudMailPassword) {
+					alert('请输入邮箱账号和密码');
+					return;
+				}
+				
+				// 显示加载状态
+				step1Btn.disabled = true;
+				step1Btn.innerText = '登录中...';
+				
+				try {
+					// 调用Cloud Mail登录API进行验证
+					const response = await fetch('/api/cloud-mail/login', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify({ email: cloudMailEmail, password: cloudMailPassword })
+					});
+					
+					const result = await response.json();
+					if (!response.ok || !result.success) {
+						throw new Error(result.message || 'Cloud Mail login failed');
+					}
+					
+					// 登录成功，隐藏第一步，显示第二步
+					const step1 = document.getElementById(`login-step1${idPrefix}`);
+					const step2 = document.getElementById(`login-step2${idPrefix}`);
+					if (step1 && step2) {
+						step1.style.display = 'none';
+						step2.style.display = '';
+					}
+					
+					// 检查是否为管理员账号
+					if (cloudMailEmail === 'admin@admin.admin') {
+						const adminOptions = document.getElementById(`admin-options${idPrefix}`);
+						if (adminOptions) {
+							adminOptions.style.display = '';
+						}
+						
+						// 管理员按钮点击事件
+						const adminManageBtn = document.getElementById(`admin-manage-btn${idPrefix}`);
+						if (adminManageBtn) {
+							adminManageBtn.addEventListener('click', () => {
+								// 跳转到管理后台
+								window.location.href = 'https://cnmailcn.dpdns.org/manage';
+							});
+						}
+					}
+					
+					// 保存登录状态
+				window.cloudMailAuth.setAuthenticated(true, result.data);
+					
+				} catch (error) {
+					// 登录失败，显示错误提示
+					console.error('Cloud Mail login error:', error);
+					step1Btn.disabled = false;
+					step1Btn.innerText = '登录';
+					
+					let errorElement = form.querySelector('.cloud-mail-error');
+					if (!errorElement) {
+						errorElement = document.createElement('div');
+						errorElement.className = 'cloud-mail-error';
+						errorElement.style.color = '#e74c3c';
+						errorElement.style.fontSize = '13px';
+						errorElement.style.marginTop = '10px';
+						errorElement.style.textAlign = 'center';
+						form.appendChild(errorElement);
+					}
+					errorElement.textContent = error.message || '邮箱账号或密码错误';
+				}
+			});
+		}
+	});
 }
 
 // 生成登录表单HTML
 // Generate login form HTML
 export function generateLoginForm(isModal = false) {
 	const idPrefix = isModal ? '-modal' : '';
-	return `		<div class="login-section">
+	return `		<div id="login-step1" class="login-step">
 			<h3 style="margin-bottom: 20px; text-align: center; font-size: 18px;">Cloud Mail 账号登录</h3>
 			<div class="input-group">
 				<input id="cloudMailEmail${idPrefix}" type="email" autocomplete="email" required placeholder="">
@@ -542,25 +580,36 @@ export function generateLoginForm(isModal = false) {
 			<p style="margin-top: 10px; text-align: center; font-size: 12px; color: #666;">
 				还没有账号？ <a href="https://cnmailcn.dpdns.org/login" target="_blank" style="color: #409EFF; text-decoration: none;">前往注册</a>
 			</p>
+			<button type="button" id="login-btn-step1${idPrefix}" class="login-btn" style="margin-top: 20px;">登录</button>
 		</div>
 		
-		<div class="login-section" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-			<h3 style="margin-bottom: 20px; text-align: center; font-size: 18px;">节点信息</h3>
-			<div class="input-group">
-				<input id="userName${idPrefix}" type="text" autocomplete="username" required minlength="1" maxlength="15" placeholder="">
-				<label for="userName${idPrefix}" class="floating-label">昵称</label>
+		<!-- 登录成功后显示的内容 -->
+		<div id="login-step2" class="login-step" style="display: none;">
+			<!-- 管理员选项 -->
+			<div id="admin-options${idPrefix}" class="admin-options" style="display: none; margin-bottom: 20px; padding: 15px; background-color: #f5f7fa; border-radius: 8px;">
+				<h3 style="margin-bottom: 15px; text-align: center; font-size: 16px; color: #409EFF;">管理员选项</h3>
+				<button type="button" id="admin-manage-btn${idPrefix}" class="login-btn" style="margin-bottom: 10px; background-color: #67C23A; width: 100%;">进入管理后台</button>
+				<p style="text-align: center; font-size: 12px; color: #909399;">或</p>
 			</div>
-			<div class="input-group">
-				<input id="roomName${idPrefix}" type="text" required minlength="1" maxlength="15" placeholder="">
-				<label for="roomName${idPrefix}" class="floating-label">群聊名称</label>
+			
+			<div class="login-section" style="padding-top: 20px;">
+				<h3 style="margin-bottom: 20px; text-align: center; font-size: 18px;">节点信息</h3>
+				<div class="input-group">
+					<input id="userName${idPrefix}" type="text" autocomplete="username" required minlength="1" maxlength="15" placeholder="">
+					<label for="userName${idPrefix}" class="floating-label">昵称</label>
+				</div>
+				<div class="input-group">
+					<input id="roomName${idPrefix}" type="text" required minlength="1" maxlength="15" placeholder="">
+					<label for="roomName${idPrefix}" class="floating-label">群聊名称</label>
+				</div>
+				<div class="input-group">
+					<input id="password${idPrefix}" type="password" autocomplete="${isModal ? 'off' : 'current-password'}" minlength="1" maxlength="15" placeholder="">
+					<label for="password${idPrefix}" class="floating-label">群聊口令 <span class="optional">${t('ui.optional', '(可选)')}</span></label>
+				</div>
 			</div>
-			<div class="input-group">
-				<input id="password${idPrefix}" type="password" autocomplete="${isModal ? 'off' : 'current-password'}" minlength="1" maxlength="15" placeholder="">
-				<label for="password${idPrefix}" class="floating-label">群聊口令 <span class="optional">${t('ui.optional', '(可选)')}</span></label>
-			</div>
+			
+			<button type="submit" class="login-btn" style="margin-top: 20px;">${t('ui.enter', '进入群聊')}</button>
 		</div>
-		
-		<button type="submit" class="login-btn" style="margin-top: 30px;">${t('ui.enter', '进入群聊')}</button>
 	`;
 }
 export function openLoginModal() {

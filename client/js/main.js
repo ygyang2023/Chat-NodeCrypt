@@ -163,13 +163,16 @@ window.addEventListener('DOMContentLoaded', () => {
 	if (joinBtn) {
 		joinBtn.onclick = openLoginModal; // 点击打开登录窗口 / Click to open login modal
 	}
-	// 阻止用户输入用户名、房间名和密码时输入空格
-	// Prevent space input for username, room name, and password fields
+	// 阻止用户输入空格
+	// Prevent space input
 	preventSpaceInput($id('cloudMailEmail'));
 	preventSpaceInput($id('cloudMailPassword'));
 	preventSpaceInput($id('userName'));
 	preventSpaceInput($id('roomName'));
 	preventSpaceInput($id('password'));
+	
+	// 初始化分步登录逻辑
+	initStepLogin();
 	
 	// 初始化翻转卡片功能 / Initialize flip card functionality
 	initFlipCard();
