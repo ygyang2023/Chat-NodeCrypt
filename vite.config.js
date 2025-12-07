@@ -22,19 +22,7 @@ export default defineConfig({
 		emptyOutDir: true,
 		// Minify
 		// 压缩
-		minify: 'terser',
-		// Terser options
-		// Terser 选项
-		terserOptions: {
-			compress: {
-				// Drop console statements
-				// 删除 console 语句
-				drop_console: false,
-				// Drop debugger statements
-				// 删除 debugger 语句
-				drop_debugger: false
-			}
-		},
+		minify: false,
 		// Rollup options
 		// Rollup 选项
 		rollupOptions: {			// Input file
