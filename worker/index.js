@@ -87,6 +87,30 @@ async function handleCloudMailLogin(request, env) {
   }
 }
 
+// 检查是否为管理员
+function isAdmin(email) {
+  return email === 'admin@admin.admin';
+}
+
+// 管理员API权限验证
+async function verifyAdminAuth(request) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader) {
+    return { success: false, response: new Response(JSON.stringify({ success: false, message: 'Authorization header required' }), { status: 401, headers: { 'Content-Type': 'application/json' } }) };
+  }
+  
+  try {
+    const token = authHeader.split(' ')[1];
+    const decoded = JSON.parse(atob(token));
+    if (!isAdmin(decoded.email)) {
+      return { success: false, response: new Response(JSON.stringify({ success: false, message: 'Admin permission required' }), { status: 403, headers: { 'Content-Type': 'application/json' } }) };
+    }
+    return { success: true, decoded };
+  } catch (error) {
+    return { success: false, response: new Response(JSON.stringify({ success: false, message: 'Invalid token' }), { status: 401, headers: { 'Content-Type': 'application/json' } }) };
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -105,6 +129,31 @@ export default {
       if (url.pathname === '/api/cloud-mail/login' && request.method === 'POST') {
         return handleCloudMailLogin(request, env);
       }
+      
+      // 管理员API
+      if (url.pathname.startsWith('/api/admin/')) {
+        // 验证管理员权限
+        const authResult = await verifyAdminAuth(request);
+        if (!authResult.success) {
+          return authResult.response;
+        }
+        
+        // 获取群聊列表
+        if (url.pathname === '/api/admin/channels' && request.method === 'GET') {
+          const id = env.CHAT_ROOM.idFromName('chat-room');
+          const stub = env.CHAT_ROOM.get(id);
+          return stub.fetch(new Request('http://localhost/api/admin/channels', { method: 'GET' }));
+        }
+        
+        // 删除群聊
+        if (url.pathname.match(/^\/api\/admin\/channels\/[^\/]+$/) && request.method === 'DELETE') {
+          const channelId = url.pathname.split('/').pop();
+          const id = env.CHAT_ROOM.idFromName('chat-room');
+          const stub = env.CHAT_ROOM.get(id);
+          return stub.fetch(new Request(`http://localhost/api/admin/channels/${channelId}`, { method: 'DELETE' }));
+        }
+      }
+      
       return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
     }
 
@@ -200,6 +249,65 @@ export class ChatRoom {  constructor(state, env) {
     // Check for WebSocket upgrade
     const upgradeHeader = request.headers.get('Upgrade');
     if (!upgradeHeader || upgradeHeader !== 'websocket') {
+      // 处理HTTP API请求
+      const url = new URL(request.url);
+      
+      // 管理员API：获取群聊列表
+      if (url.pathname === '/api/admin/channels' && request.method === 'GET') {
+        const channels = Object.keys(this.channels).map(channel => ({
+          id: channel,
+          name: channel, // 使用群聊ID作为名称，实际应用中可能需要单独存储名称
+          members: this.channels[channel].length,
+          lastActive: new Date().toISOString()
+        }));
+        
+        return new Response(JSON.stringify({
+          success: true,
+          data: {
+            channels: channels
+          }
+        }), { headers: { 'Content-Type': 'application/json' } });
+      }
+      
+      // 管理员API：删除群聊
+      if (url.pathname.match(/^\/api\/admin\/channels\/[^\/]+$/) && request.method === 'DELETE') {
+        const channelId = url.pathname.split('/').pop();
+        
+        if (this.channels[channelId]) {
+          // 通知该群聊的所有成员
+          for (const clientId of this.channels[channelId]) {
+            const client = this.clients[clientId];
+            if (client && client.connection && client.connection.readyState === 1) {
+              try {
+                const messageObj = {
+                  a: 'channel_deleted',
+                  p: `群聊 "${channelId}" 已被管理员删除`
+                };
+                const encrypted = encryptMessage(messageObj, client.shared);
+                this.sendMessage(client.connection, encrypted);
+                // 关闭连接
+                client.connection.close();
+              } catch (error) {
+                logEvent('channel-delete-notify', [clientId, error], 'error');
+              }
+            }
+          }
+          
+          // 删除群聊
+          delete this.channels[channelId];
+          
+          return new Response(JSON.stringify({
+            success: true,
+            message: `群聊 "${channelId}" 已成功删除`
+          }), { headers: { 'Content-Type': 'application/json' } });
+        } else {
+          return new Response(JSON.stringify({
+            success: false,
+            message: '群聊不存在'
+          }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+        }
+      }
+      
       return new Response('Expected WebSocket Upgrade', { status: 426 });
     }
 

@@ -93,29 +93,88 @@ function initChatManagement() {
 	`;
 	chatView.insertBefore(chatManagementSection, chatMessages);
 	
-	// 模拟群聊数据
-	const mockChats = [
-		{ id: '1', name: '群聊1', members: 10, lastActive: '2小时前', hasViolation: true },
-		{ id: '2', name: '群聊2', members: 5, lastActive: '1小时前', hasViolation: false },
-		{ id: '3', name: '群聊3', members: 15, lastActive: '30分钟前', hasViolation: true },
-		{ id: '4', name: '群聊4', members: 8, lastActive: '5分钟前', hasViolation: false }
-	];
+	// 获取当前用户信息
+	function getCurrentUser() {
+		return JSON.parse(localStorage.getItem('user')) || {};
+	}
+	
+	// 获取认证Token
+	function getAuthToken() {
+		const user = getCurrentUser();
+		return btoa(JSON.stringify(user));
+	}
+	
+	// 获取群聊列表
+	async function fetchChatList() {
+		try {
+			const response = await fetch('/api/admin/channels', {
+				method: 'GET',
+				headers: {
+					'Authorization': `Bearer ${getAuthToken()}`,
+					'Content-Type': 'application/json'
+				}
+			});
+			
+			if (!response.ok) {
+				throw new Error('Failed to fetch chat list');
+			}
+			
+			const data = await response.json();
+			return data.success ? data.data.channels : [];
+		} catch (error) {
+			console.error('Error fetching chat list:', error);
+			return [];
+		}
+	}
+	
+	// 删除群聊
+	async function deleteChat(chatId) {
+		try {
+			const response = await fetch(`/api/admin/channels/${chatId}`, {
+				method: 'DELETE',
+				headers: {
+					'Authorization': `Bearer ${getAuthToken()}`,
+					'Content-Type': 'application/json'
+				}
+			});
+			
+			if (!response.ok) {
+				throw new Error('Failed to delete chat');
+			}
+			
+			const data = await response.json();
+			return data.success;
+		} catch (error) {
+			console.error('Error deleting chat:', error);
+			return false;
+		}
+	}
 	
 	// 渲染群聊列表
-	function renderChatList() {
+	async function renderChatList() {
+		chatList.innerHTML = '<p style="color: #909399; font-size: 14px; text-align: center; padding: 20px;">加载中...</p>';
+		
+		const chats = await fetchChatList();
+		
 		chatList.innerHTML = '';
 		
-		mockChats.forEach(chat => {
+		if (chats.length === 0) {
+			chatList.innerHTML = '<p style="color: #909399; font-size: 14px; text-align: center; padding: 20px;">暂无群聊</p>';
+			return;
+		}
+		
+		chats.forEach(chat => {
 			const chatItem = document.createElement('div');
-			chatItem.className = `chat-item ${chat.hasViolation ? 'violated' : ''}`;
+			chatItem.className = 'chat-item';
 			chatItem.innerHTML = `
 				<div class="chat-item-header">
 					<span class="chat-item-name">${chat.name}</span>
-					<span class="chat-item-info">${chat.members} 成员 · ${chat.lastActive}</span>
+					<span class="chat-item-info">${chat.members} 成员 · ${new Date(chat.lastActive).toLocaleString()}</span>
 				</div>
 				<div style="margin-top: 10px;">
-					<button class="chat-action-btn view-btn" data-chat-id="${chat.id}">查看记录</button>
-					<button class="chat-action-btn announce-btn" data-chat-id="${chat.id}">发送公告</button>
+					<button class="chat-action-btn view-btn" data-chat-id="${chat.id}" data-chat-name="${chat.name}">查看记录</button>
+					<button class="chat-action-btn announce-btn" data-chat-id="${chat.id}" data-chat-name="${chat.name}">发送公告</button>
+					<button class="chat-action-btn delete-btn" data-chat-id="${chat.id}" data-chat-name="${chat.name}">删除群聊</button>
 				</div>
 			`;
 			
@@ -129,6 +188,20 @@ function initChatManagement() {
 			const announceBtn = chatItem.querySelector('.announce-btn');
 			announceBtn.addEventListener('click', () => {
 				openAnnounceModal(chat);
+			});
+			
+			// 删除群聊按钮点击事件
+			const deleteBtn = chatItem.querySelector('.delete-btn');
+			deleteBtn.addEventListener('click', async () => {
+				if (confirm(`确定要删除群聊 "${chat.name}" 吗？此操作将断开所有成员连接。`)) {
+					const success = await deleteChat(chat.id);
+					if (success) {
+						alert('群聊删除成功');
+						renderChatList(); // 重新渲染群聊列表
+					} else {
+						alert('群聊删除失败，请重试');
+					}
+				}
 			});
 			
 			chatList.appendChild(chatItem);
@@ -158,7 +231,8 @@ function initChatManagement() {
 	function renderChatMessages(chatId) {
 		chatMessages.innerHTML = '';
 		
-		// 模拟聊天记录
+		// 目前群聊记录存储在客户端，实际应用中应该从服务器获取
+		// 这里暂时显示模拟数据
 		const mockMessages = [
 			{ id: '1', user: '用户1', content: '大家好！', timestamp: '10:00' },
 			{ id: '2', user: '用户2', content: '你好！', timestamp: '10:01' },
@@ -263,6 +337,19 @@ function initChatManagement() {
 			sendAdminMessageBtn.click();
 		}
 	});
+	
+	// 添加删除群聊按钮样式
+	const style = document.createElement('style');
+	style.textContent = `
+		.chat-action-btn.delete-btn {
+			color: #ff4d4f;
+			border-color: #ff4d4f;
+		}
+		.chat-action-btn.delete-btn:hover {
+			background-color: #fff1f0;
+		}
+	`;
+	document.head.appendChild(style);
 	
 	// 初始渲染群聊列表
 	renderChatList();
